@@ -1,3 +1,4 @@
+mod console;
 
 struct Human {
     pub age: i32,
@@ -5,7 +6,7 @@ struct Human {
 }
 
 impl Human {
-    fn cock(&self) {
+    fn print_name(&self) {
         println!("{}", self.name)
     }
 }
@@ -13,5 +14,5 @@ impl Human {
 fn main() {
     let mut adam : Human = Human { age:11, name: String::from("Little billy")};
 
-    adam.cock();
+    adam.print_name();
 }
