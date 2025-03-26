@@ -12,8 +12,8 @@ pub use memory::Memory;
 pub use display::Display;
 pub use audio::Audio;
 
-struct Console {
-    cpu: Cpu,
+struct Console<'a> {
+    cpu: Cpu<'a>,
     memory: Memory,
     cartridge: Cartridge,
     display: Display,
