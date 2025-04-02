@@ -1,0 +1,8 @@
+mod instruction;
+mod register;
+mod instruction_operands;
+
+pub mod cpu;
+
+#[cfg(test)]
+pub mod cpu_tests;
