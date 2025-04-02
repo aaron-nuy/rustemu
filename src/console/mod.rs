@@ -1,10 +1,14 @@
 pub mod cartridge;
-pub mod cpu;
 pub mod memory;
 pub mod display;
 pub mod audio;
 pub mod input;
 pub mod constants;
+pub mod instruction;
+pub mod register;
+pub mod bit_utils;
+pub mod instruction_operands;
+pub mod cpu;
 
 pub use cartridge::Cartridge;
 pub use cpu::Cpu;

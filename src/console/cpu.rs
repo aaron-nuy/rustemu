@@ -1,6 +1,6 @@
-use std::{clone};
-
-use super::{ Memory };
+use crate::console::memory::Memory;
+use crate::console::instruction::*;
+use crate::console::bit_utils;
 
 pub struct Cpu<'a> {
     a: u8,
@@ -15,37 +15,8 @@ pub struct Cpu<'a> {
     pc: u16,
     interrupts_enabled: bool,
     halted: bool,
+    clock: u64,
     memory: &'a mut Memory,
-}
-
-#[derive(Clone)]
-enum Register {
-    A,
-    B,
-    C,
-    D,
-    E,
-    F,
-    H,
-    L,
-}
-
-#[derive(Clone)]
-enum Register16 {
-    AF,
-    BC,
-    DE,
-    HL,
-    SP,
-    PC,
-}
-
-enum FlowCondition {
-    NotZero,
-    Zero,
-    NotCarry,
-    Carry,
-    Always
 }
 
 impl<'a> Cpu<'a> {
@@ -55,14 +26,6 @@ impl<'a> Cpu<'a> {
     const F_CARRY_FLAG_POS: u8 = 4;
 
     // Utility
-
-    fn get_bit(value: u8, bit_position: u8) -> bool {
-        (value & (0b1 << bit_position)) != 0x0
-    }
-
-    fn modify_bit(value: u8, bit_position: u8, on: bool) -> u8 {
-        if on { value | (1 << bit_position) } else { value & !(1 << bit_position) }
-    }
 
     fn set_register(&mut self, register: Register, value: u8) {
         match register {
@@ -97,7 +60,7 @@ impl<'a> Cpu<'a> {
             Register::L => {
                 self.l = value;
             }
-            _ => panic!("Uknown register"),
+            _ => panic!("Unknown register"),
         }
     }
 
@@ -113,7 +76,7 @@ impl<'a> Cpu<'a> {
             Register16::PC => {
                 self.pc = value;
             }
-            _ => panic!("Uknown register"),
+            _ => panic!("Unknown register"),
         }
     }
 
@@ -127,7 +90,7 @@ impl<'a> Cpu<'a> {
             Register::F => self.f & 0xf0,
             Register::H => self.h,
             Register::L => self.l,
-            _ => panic!("Uknown register"),
+            _ => panic!("Unknown register"),
         }
     }
 
@@ -139,19 +102,19 @@ impl<'a> Cpu<'a> {
             Register16::HL => self.get_hl(),
             Register16::SP => self.sp,
             Register16::PC => self.pc,
-            _ => panic!("Uknown register"),
+            _ => panic!("Unknown register"),
         }
     }
 
     fn set_register_bit(&mut self, register: Register, bit_position: u8, on: bool) {
         let register_value = self.get_register(register.clone());
-        let new_register_value = Cpu::modify_bit(register_value, bit_position, on);
+        let new_register_value = bit_utils::modify_bit(register_value, bit_position, on);
         self.set_register(register, new_register_value);
     }
 
     fn get_register_bit(&self, register: Register, bit_position: u8) -> bool {
         let register_value = self.get_register(register.clone());
-        Cpu::get_bit(register_value, bit_position)
+        bit_utils::get_bit(register_value, bit_position)
     }
 
     fn get_bc(&self) -> u16 {
@@ -197,14 +160,14 @@ impl<'a> Cpu<'a> {
         self.set_register_bit(Register::F, Cpu::F_HALF_CARRY_FLAG_POS, half_carry);
     }
 
-    fn evaluate_flow_condition(&self, condtion: FlowCondition) -> bool {
-        match condtion {
-            FlowCondition::NotZero => !Self::get_bit(self.f, Cpu::F_ZERO_FLAG_POS),
-            FlowCondition::Zero => Self::get_bit(self.f, Cpu::F_ZERO_FLAG_POS),
-            FlowCondition::NotCarry => !Self::get_bit(self.f, Cpu::F_CARRY_FLAG_POS),
-            FlowCondition::Carry => Self::get_bit(self.f, Cpu::F_CARRY_FLAG_POS),
+    fn evaluate_flow_condition(&self, condition: FlowCondition) -> bool {
+        match condition {
+            FlowCondition::NotZero => !bit_utils::get_bit(self.f, Cpu::F_ZERO_FLAG_POS),
+            FlowCondition::Zero => bit_utils::get_bit(self.f, Cpu::F_ZERO_FLAG_POS),
+            FlowCondition::NotCarry => !bit_utils::get_bit(self.f, Cpu::F_CARRY_FLAG_POS),
+            FlowCondition::Carry => bit_utils::get_bit(self.f, Cpu::F_CARRY_FLAG_POS),
             FlowCondition::Always => true,
-            _ => panic!("Unknown condtion")
+            _ => panic!("Unknown condition"),
         }
     }
 
@@ -220,128 +183,205 @@ impl<'a> Cpu<'a> {
         stack_value
     }
 
+    fn get_operand_from_opcode(opcode: u8, operand_type: OperandType, is_destination: bool, is_cb: bool) -> u8 {
+        let block = Block::from_byte(opcode, is_cb);
+
+        let (mask, shift_right) = match operand_type {
+            OperandType::R8Operand => {
+                match block {
+                    Block::ZERO => (0b00111000, 3),
+                    Block::ONE => if is_destination { (0b00111000, 3) } else { (0b00000111, 0) },
+                    Block::TWO | Block::CB => (0b00000111, 0),
+                    Block::THREE => panic!("Attempting to access R8Operand from block THREE")
+                }
+            }
+            OperandType::R16Operand => {
+                match block {
+                    Block::ZERO => (0b00110000, 4),
+                    _ => panic!("Attempting to access R16Operand from block other than ZERO")
+                }
+            }
+            OperandType::R16StkOperand => {
+                match block {
+                    Block::THREE => (0b00110000, 4),
+                    _ => panic!("Attempting to access R16StkOperand from block other than THREE")
+                }
+            }
+            OperandType::R16MemOperand => {
+                match block {
+                    Block::ZERO => (0b00110000, 4),
+                    _ => panic!("Attempting to access R16MemOperand from block other than ZERO")
+                }
+            }
+            OperandType::FlowCondition => {
+                match block {
+                    Block::ZERO | Block::THREE => (0b00011000, 3),
+                    _ => panic!("Attempting to access FlowCondition from block other than ZERO or THREE")
+                }
+            }
+            OperandType::BitIndex => {
+                match block {
+                    Block::CB => (0b00111000, 3),
+                    _ => panic!("Attempting to access BitIndex from block other than CB")
+                }
+            }
+            OperandType::ResetTarget => {
+                match block {
+                    Block::THREE => (0b00111000, 3),
+                    _ => panic!("Attempting to access ResetTarget from block other than THREE")
+                }
+            }
+        };
+
+        (opcode & mask) >> shift_right
+    }
+
     // Instructions
 
-    fn ld(&mut self, register_to: Register, register_from: Register) {
+    fn ld(&mut self, register_to: Register, register_from: Register) -> u64 {
         let register_from_value = self.get_register(register_from);
         self.set_register(register_to, register_from_value);
+        1
     }
 
-    fn ld_imm(&mut self, register_to: Register, imm_value: u8) {
+    fn ld_imm(&mut self, register_to: Register, imm_value: u8) -> u64 {
         self.set_register(register_to, imm_value);
+        2
     }
 
-    fn ld_from_hl_ind(&mut self, register_to: Register) {
+    fn ld_from_hl_ind(&mut self, register_to: Register) -> u64 {
         let memory_value = self.memory.read_from_8b(self.get_hl());
         self.set_register(register_to, memory_value);
+        2
     }
 
-    fn ld_to_hl_ind(&mut self, register_from: Register) {
+    fn ld_to_hl_ind(&mut self, register_from: Register) -> u64 {
         let register_from_value = self.get_register(register_from);
         self.memory.write_to_8b(self.get_hl(), register_from_value);
+        2
     }
 
-    fn ld_to_hl_ind_imm(&mut self, value: u8) {
+    fn ld_to_hl_ind_imm(&mut self, value: u8) -> u64 {
         self.memory.write_to_8b(self.get_hl(), value);
+        3
     }
 
-    fn ld_from_bc_to_a_ind(&mut self) {
+    fn ld_from_bc_to_a_ind(&mut self) -> u64 {
         let memory_value = self.memory.read_from_8b(self.get_bc());
         self.a = memory_value;
+        2
     }
 
-    fn ld_from_de_to_a_ind(&mut self) {
+    fn ld_from_de_to_a_ind(&mut self) -> u64 {
         let memory_value = self.memory.read_from_8b(self.get_de());
         self.a = memory_value;
+        2
     }
 
-    fn ld_to_bc_ind_from_a(&mut self) {
+    fn ld_to_bc_ind_from_a(&mut self) -> u64 {
         self.memory.write_to_8b(self.get_bc(), self.a);
+        2
     }
 
-    fn ld_to_de_ind_from_a(&mut self) {
+    fn ld_to_de_ind_from_a(&mut self) -> u64 {
         self.memory.write_to_8b(self.get_de(), self.a);
+        2
     }
 
-    fn ld_from_imm_to_a_16(&mut self, imm: u16) {
+    fn ld_from_imm_to_a_16(&mut self, imm: u16) -> u64 {
         self.a = self.memory.read_from_8b(imm);
+        4
     }
 
-    fn ld_to_imm_from_a_16(&mut self, imm: u16) {
+    fn ld_to_imm_from_a_16(&mut self, imm: u16) -> u64 {
         self.memory.write_to_8b(imm, self.a);
+        4
     }
 
-    fn ld_to_a_from_c_ind(&mut self) {
+    fn ld_to_a_from_c_ind(&mut self) -> u64 {
         let addr: u16 = 0xff00 | (self.c as u16);
         self.a = self.memory.read_from_8b(addr);
+        2
     }
 
-    fn ld_from_a_to_c_ind(&mut self) {
+    fn ld_from_a_to_c_ind(&mut self) -> u64 {
         let addr: u16 = 0xff00 | (self.c as u16);
         self.memory.write_to_8b(addr, self.a);
+        2
     }
 
-    fn ld_from_imm_to_a_8(&mut self, imm: u8) {
+    fn ld_from_imm_to_a_8(&mut self, imm: u8) -> u64 {
         let addr: u16 = 0xff00 | (imm as u16);
         self.a = self.memory.read_from_8b(addr);
+        3
     }
 
-    fn ld_to_imm_from_a_8(&mut self, imm: u8) {
+    fn ld_to_imm_from_a_8(&mut self, imm: u8) -> u64 {
         let addr: u16 = 0xff00 | (imm as u16);
         self.memory.write_to_8b(addr, self.a);
+        3
     }
 
-    fn ld_to_a_from_hl_ind_dec(&mut self) {
+    fn ld_to_a_from_hl_ind_dec(&mut self) -> u64 {
         let mut hl: u16 = self.get_hl();
         self.a = self.memory.read_from_8b(hl);
         hl = hl.wrapping_sub(1);
         self.set_hl(hl);
+        2
     }
 
-    fn ld_to_hl_ind_dec_from_a(&mut self) {
+    fn ld_to_hl_ind_dec_from_a(&mut self) -> u64 {
         let mut hl: u16 = self.get_hl();
         self.memory.write_to_8b(hl, self.a);
         hl = hl.wrapping_sub(1);
         self.set_hl(hl);
+        2
     }
 
-    fn ld_to_a_from_hl_ind_inc(&mut self) {
+    fn ld_to_a_from_hl_ind_inc(&mut self) -> u64 {
         let mut hl: u16 = self.get_hl();
         self.a = self.memory.read_from_8b(hl);
         hl = hl.wrapping_add(1);
         self.set_hl(hl);
+        2
     }
 
-    fn ld_to_hl_ind_inc_from_a(&mut self) {
+    fn ld_to_hl_ind_inc_from_a(&mut self) -> u64 {
         let mut hl: u16 = self.get_hl();
         self.memory.write_to_8b(hl, self.a);
         hl = hl.wrapping_add(1);
         self.set_hl(hl);
+        2
     }
 
-    fn ld_imm_16(&mut self, register_to: Register16, imm_value: u16) {
+    fn ld_imm_16(&mut self, register_to: Register16, imm_value: u16) -> u64 {
         self.set_register_16(register_to, imm_value);
+        3
     }
 
-    fn ld_to_imm_from_sp(&mut self, imm_value: u16) {
+    fn ld_to_imm_from_sp(&mut self, imm_value: u16) -> u64 {
         self.memory.write_to_16b(imm_value, self.sp);
+        5
     }
 
-    fn ld_sp_from_hl(&mut self) {
+    fn ld_sp_from_hl(&mut self) -> u64 {
         self.sp = self.get_hl();
+        2
     }
 
-    fn push(&mut self, register_from: Register16) {
+    fn push(&mut self, register_from: Register16) -> u64 {
         let register_value = self.get_register_16(register_from);
         self.push_to_stack_16b(register_value);
+        4
     }
 
-    fn pop(&mut self, register: Register16) {
+    fn pop(&mut self, register: Register16) -> u64 {
         let stack_value = self.pop_from_stack_16b();
         self.set_register_16(register, stack_value);
+        3
     }
 
-    fn ld_hl_from_adjusted_sp(&mut self, imm: i8) {
+    fn ld_hl_from_adjusted_sp(&mut self, imm: i8) -> u64 {
         let adjusted_sp = self.sp.wrapping_add_signed(imm as i8 as i16);
         self.set_hl(adjusted_sp);
 
@@ -351,6 +391,7 @@ impl<'a> Cpu<'a> {
         let did_overflow = (sp & 0x00ff).wrapping_add(imm as u8 as u16) > 0x00ff;
 
         self.set_f_flags(did_overflow, half_carry, false, false);
+        3
     }
 
     fn _add(&mut self, value: u8) {
@@ -363,7 +404,7 @@ impl<'a> Cpu<'a> {
     }
 
     fn _adc(&mut self, value: u8) {
-        let carry_flag = if Self::get_bit(self.f, Cpu::F_CARRY_FLAG_POS) { 1 } else { 0 };
+        let carry_flag = if bit_utils::get_bit(self.f, Cpu::F_CARRY_FLAG_POS) { 1 } else { 0 };
 
         let (first_add, did_overflow1) = self.a.overflowing_add(value);
         let (second_add, did_overflow2) = first_add.overflowing_add(carry_flag);
@@ -376,32 +417,38 @@ impl<'a> Cpu<'a> {
         self.a = second_add;
     }
 
-    fn add(&mut self, register: Register) {
+    fn add(&mut self, register: Register) -> u64 {
         let value = self.get_register(register);
         self._add(value);
+        1
     }
 
-    fn add_hl_ind(&mut self) {
+    fn add_hl_ind(&mut self) -> u64 {
         let value = self.memory.read_from_8b(self.get_hl());
         self._add(value);
+        2
     }
 
-    fn add_imm(&mut self, imm: u8) {
+    fn add_imm(&mut self, imm: u8) -> u64 {
         self._add(imm);
+        2
     }
 
-    fn add_c(&mut self, register: Register) {
+    fn add_c(&mut self, register: Register) -> u64 {
         let value = self.get_register(register);
         self._adc(value);
+        1
     }
 
-    fn add_c_hl_ind(&mut self) {
+    fn add_c_hl_ind(&mut self) -> u64 {
         let value = self.memory.read_from_8b(self.get_hl());
         self._adc(value);
+        2
     }
 
-    fn add_c_imm(&mut self, imm: u8) {
+    fn add_c_imm(&mut self, imm: u8) -> u64 {
         self._adc(imm);
+        2
     }
 
     fn _sub(&mut self, value: u8) {
@@ -414,7 +461,7 @@ impl<'a> Cpu<'a> {
     }
 
     fn _sbc(&mut self, value: u8) {
-        let carry_flag = if Cpu::get_bit(self.f, Cpu::F_CARRY_FLAG_POS) { 1 } else { 0 };
+        let carry_flag = if bit_utils::get_bit(self.f, Cpu::F_CARRY_FLAG_POS) { 1 } else { 0 };
 
         let (fist_sub, did_borrow1) = self.a.overflowing_sub(value);
         let (second_sub, did_borrow2) = fist_sub.overflowing_sub(carry_flag);
@@ -427,32 +474,38 @@ impl<'a> Cpu<'a> {
         self.a = second_sub;
     }
 
-    fn sub(&mut self, register: Register) {
+    fn sub(&mut self, register: Register) -> u64 {
         let value = self.get_register(register);
         self._sub(value);
+        1
     }
 
-    fn sub_hl_ind(&mut self) {
+    fn sub_hl_ind(&mut self) -> u64 {
         let value = self.memory.read_from_8b(self.get_hl());
         self._sub(value);
+        2
     }
 
-    fn sub_imm(&mut self, imm: u8) {
+    fn sub_imm(&mut self, imm: u8) -> u64 {
         self._sub(imm);
+        2
     }
 
-    fn sub_c(&mut self, register: Register) {
+    fn sub_c(&mut self, register: Register) -> u64 {
         let value = self.get_register(register);
         self._sbc(value);
+        1
     }
 
-    fn sub_c_hl_ind(&mut self) {
+    fn sub_c_hl_ind(&mut self) -> u64 {
         let value = self.memory.read_from_8b(self.get_hl());
         self._sbc(value);
+        2
     }
 
-    fn sub_c_imm(&mut self, imm: u8) {
+    fn sub_c_imm(&mut self, imm: u8) -> u64 {
         self._sbc(imm);
+        2
     }
 
     fn _cp(&mut self, value: u8) {
@@ -462,21 +515,24 @@ impl<'a> Cpu<'a> {
         self.set_f_flags(did_borrow, half_carry, true, new_register_value == 0);
     }
 
-    fn cp(&mut self, register: Register) {
+    fn cp(&mut self, register: Register) -> u64 {
         let value = self.get_register(register);
         self._cp(value);
+        1
     }
 
-    fn cp_hl_ind(&mut self) {
+    fn cp_hl_ind(&mut self) -> u64 {
         let value = self.memory.read_from_8b(self.get_hl());
         self._cp(value);
+        2
     }
 
-    fn cp_imm(&mut self, imm: u8) {
+    fn cp_imm(&mut self, imm: u8) -> u64 {
         self._cp(imm);
+        2
     }
 
-    fn inc(&mut self, register: Register) {
+    fn inc(&mut self, register: Register) -> u64 {
         let value = self.get_register(register.clone());
 
         let (new_value, _) = value.overflowing_add(1);
@@ -486,9 +542,10 @@ impl<'a> Cpu<'a> {
         self.set_f_flags(current_carry, half_carry, false, new_value == 0);
 
         self.set_register(register, new_value);
+        1
     }
 
-    fn inc_hl_ind(&mut self) {
+    fn inc_hl_ind(&mut self) -> u64 {
         let value = self.memory.read_from_8b(self.get_hl());
 
         let (new_value, _) = value.overflowing_add(1);
@@ -498,9 +555,10 @@ impl<'a> Cpu<'a> {
         self.set_f_flags(current_carry, half_carry, false, new_value == 0);
 
         self.memory.write_to_8b(self.get_hl(), new_value);
+        3
     }
 
-    fn dec(&mut self, register: Register) {
+    fn dec(&mut self, register: Register) -> u64 {
         let value = self.get_register(register.clone());
 
         let (new_value, _) = value.overflowing_sub(1);
@@ -510,9 +568,10 @@ impl<'a> Cpu<'a> {
         self.set_f_flags(current_carry, half_carry, true, new_value == 0);
 
         self.set_register(register, new_value);
+        1
     }
 
-    fn dec_hl_ind(&mut self) {
+    fn dec_hl_ind(&mut self) -> u64 {
         let value = self.memory.read_from_8b(self.get_hl());
 
         let (new_value, _) = value.overflowing_sub(1);
@@ -522,6 +581,7 @@ impl<'a> Cpu<'a> {
         self.set_f_flags(current_carry, half_carry, true, new_value == 0);
 
         self.memory.write_to_8b(self.get_hl(), new_value);
+        3
     }
 
     fn _and(&mut self, value: u8) {
@@ -532,18 +592,21 @@ impl<'a> Cpu<'a> {
         self.a = new_value;
     }
 
-    fn and(&mut self, register: Register) {
+    fn and(&mut self, register: Register) -> u64 {
         let value = self.get_register(register);
         self._and(value);
+        1
     }
 
-    fn and_hl_ind(&mut self) {
+    fn and_hl_ind(&mut self) -> u64 {
         let value = self.memory.read_from_8b(self.get_hl());
         self._and(value);
+        2
     }
 
-    fn and_imm(&mut self, imm: u8) {
+    fn and_imm(&mut self, imm: u8) -> u64 {
         self._and(imm);
+        2
     }
 
     fn _or(&mut self, value: u8) {
@@ -554,18 +617,21 @@ impl<'a> Cpu<'a> {
         self.a = new_value;
     }
 
-    fn or(&mut self, register: Register) {
+    fn or(&mut self, register: Register) -> u64 {
         let value = self.get_register(register);
         self._or(value);
+        1
     }
 
-    fn or_hl_ind(&mut self) {
+    fn or_hl_ind(&mut self) -> u64 {
         let value = self.memory.read_from_8b(self.get_hl());
         self._or(value);
+        2
     }
 
-    fn or_imm(&mut self, imm: u8) {
+    fn or_imm(&mut self, imm: u8) -> u64 {
         self._or(imm);
+        2
     }
 
     fn _xor(&mut self, value: u8) {
@@ -576,33 +642,38 @@ impl<'a> Cpu<'a> {
         self.a = new_value;
     }
 
-    fn xor(&mut self, register: Register) {
+    fn xor(&mut self, register: Register) -> u64 {
         let value = self.get_register(register);
         self._xor(value);
+        1
     }
 
-    fn xor_hl_ind(&mut self) {
+    fn xor_hl_ind(&mut self) -> u64 {
         let value = self.memory.read_from_8b(self.get_hl());
         self._xor(value);
+        2
     }
 
-    fn xor_imm(&mut self, imm: u8) {
+    fn xor_imm(&mut self, imm: u8) -> u64 {
         self._xor(imm);
+        2
     }
 
-    fn ccf(&mut self) {
+    fn ccf(&mut self) -> u64 {
         let current_carry = self.get_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS);
         let current_zero = self.get_register_bit(Register::F, Cpu::F_ZERO_FLAG_POS);
 
         self.set_f_flags(!current_carry, false, false, current_zero);
+        1
     }
 
-    fn scf(&mut self) {
+    fn scf(&mut self) -> u64 {
         let current_zero = self.get_register_bit(Register::F, Cpu::F_ZERO_FLAG_POS);
         self.set_f_flags(true, false, false, current_zero);
+        1
     }
 
-    fn daa(&mut self) {
+    fn daa(&mut self) -> u64 {
         let current_sub = self.get_register_bit(Register::F, Cpu::F_SUB_FLAG_POS);
         let current_half_carry = self.get_register_bit(Register::F, Cpu::F_HALF_CARRY_FLAG_POS);
         let mut carry = self.get_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS);
@@ -631,28 +702,32 @@ impl<'a> Cpu<'a> {
         self.set_f_flags(carry, false, current_sub, new_value == 0);
 
         self.a = new_value;
+        1
     }
 
-    fn cpl(&mut self) {
+    fn cpl(&mut self) -> u64 {
         let current_carry = self.get_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS);
         let current_zero = self.get_register_bit(Register::F, Cpu::F_ZERO_FLAG_POS);
 
         self.set_f_flags(current_carry, true, true, current_zero);
 
         self.a = !self.a;
+        1
     }
 
-    fn inc_16(&mut self, register: Register16) {
+    fn inc_16(&mut self, register: Register16) -> u64 {
         let value = self.get_register_16(register.clone());
         self.set_register_16(register, value.wrapping_add(1));
+        2
     }
 
-    fn dec_16(&mut self, register: Register16) {
+    fn dec_16(&mut self, register: Register16) -> u64 {
         let value = self.get_register_16(register.clone());
         self.set_register_16(register, value.wrapping_sub(1));
+        2
     }
 
-    fn add_hl(&mut self, register: Register16) {
+    fn add_hl(&mut self, register: Register16) -> u64 {
         let register_value = self.get_register_16(register);
         let hl = self.get_hl();
 
@@ -663,9 +738,10 @@ impl<'a> Cpu<'a> {
         self.set_f_flags(did_overflow, half_carry, false, current_zero);
 
         self.set_hl(new_value);
+        2
     }
 
-    fn add_spp_imm(&mut self, imm: u8) {
+    fn add_sp_imm(&mut self, imm: u8) -> u64 {
         let new_value = self.sp.wrapping_add_signed(imm as i8 as i16);
 
         let sp = self.sp;
@@ -676,6 +752,7 @@ impl<'a> Cpu<'a> {
         self.set_f_flags(did_overflow, half_carry, false, false);
 
         self.sp = new_value;
+        4
     }
 
     fn _rotate(&mut self, value: u8, circular: bool, right: bool, accumulator: bool) -> u8 {
@@ -702,84 +779,96 @@ impl<'a> Cpu<'a> {
         new_value
     }
 
-    fn rlca(&mut self) {
+    fn rlca(&mut self) -> u64 {
         self.a = self._rotate(self.a, true, false, true);
+        1
     }
 
-    fn rrca(&mut self) {
+    fn rrca(&mut self) -> u64 {
         self.a = self._rotate(self.a, true, true, true);
+        1
     }
 
-    fn rra(&mut self) {
+    fn rra(&mut self) -> u64 {
         self.a = self._rotate(self.a, false, true, true);
+        1
     }
 
-    fn rla(&mut self) {
+    fn rla(&mut self) -> u64 {
         self.a = self._rotate(self.a, false, false, true);
+        1
     }
 
-    fn rlcr(&mut self, register: Register) {
+    fn rlcr(&mut self, register: Register) -> u64 {
         let register_value = self.get_register(register.clone());
 
         let new_value = self._rotate(register_value, true, false, false);
 
         self.set_register(register, new_value);
+        2
     }
 
-    fn rlc_hl_ind(&mut self) {
+    fn rlc_hl_ind(&mut self) -> u64 {
         let register_value = self.memory.read_from_8b(self.get_hl());
 
         let new_value = self._rotate(register_value, true, false, false);
 
         self.memory.write_to_8b(self.get_hl(), new_value);
+        4
     }
 
-    fn rrcr(&mut self, register: Register) {
+    fn rrcr(&mut self, register: Register) -> u64 {
         let register_value = self.get_register(register.clone());
 
         let new_value = self._rotate(register_value, true, true, false);
 
         self.set_register(register, new_value);
+        2
     }
 
-    fn rrc_hl_ind(&mut self) {
+    fn rrc_hl_ind(&mut self) -> u64 {
         let register_value = self.memory.read_from_8b(self.get_hl());
 
         let new_value = self._rotate(register_value, true, true, false);
 
         self.memory.write_to_8b(self.get_hl(), new_value);
+        4
     }
 
-    fn rrr(&mut self, register: Register) {
+    fn rrr(&mut self, register: Register) -> u64 {
         let register_value = self.get_register(register.clone());
 
         let new_value = self._rotate(register_value, false, true, false);
 
         self.set_register(register, new_value);
+        2
     }
 
-    fn rlr(&mut self, register: Register) {
+    fn rlr(&mut self, register: Register) -> u64 {
         let register_value = self.get_register(register.clone());
 
         let new_value = self._rotate(register_value, false, false, false);
 
         self.set_register(register, new_value);
+        2
     }
 
-    fn rr_hl_ind(&mut self) {
+    fn rr_hl_ind(&mut self) -> u64 {
         let register_value = self.memory.read_from_8b(self.get_hl());
 
         let new_value = self._rotate(register_value, false, true, false);
 
         self.memory.write_to_8b(self.get_hl(), new_value);
+        4
     }
 
-    fn rl_hl_ind(&mut self) {
+    fn rl_hl_ind(&mut self) -> u64 {
         let register_value = self.memory.read_from_8b(self.get_hl());
 
         let new_value = self._rotate(register_value, false, false, false);
 
         self.memory.write_to_8b(self.get_hl(), new_value);
+        4
     }
 
     fn _sa(&mut self, value: u8, right: bool) -> u8 {
@@ -794,36 +883,40 @@ impl<'a> Cpu<'a> {
         new_value
     }
 
-    fn srar(&mut self, register: Register) {
+    fn srar(&mut self, register: Register) -> u64 {
         let register_value = self.get_register(register.clone());
 
         let new_value = self._sa(register_value, true);
 
         self.set_register(register, new_value);
+        2
     }
 
-    fn sra_hl_ind(&mut self) {
+    fn sra_hl_ind(&mut self) -> u64 {
         let register_value = self.memory.read_from_8b(self.get_hl());
 
         let new_value = self._sa(register_value, true);
 
         self.memory.write_to_8b(self.get_hl(), new_value);
+        4
     }
 
-    fn slar(&mut self, register: Register) {
+    fn slar(&mut self, register: Register) -> u64 {
         let register_value = self.get_register(register.clone());
 
         let new_value = self._sa(register_value, false);
 
         self.set_register(register, new_value);
+        2
     }
 
-    fn sla_hl_ind(&mut self) {
+    fn sla_hl_ind(&mut self) -> u64 {
         let register_value = self.memory.read_from_8b(self.get_hl());
 
         let new_value = self._sa(register_value, false);
 
         self.memory.write_to_8b(self.get_hl(), new_value);
+        4
     }
 
     fn _sl(&mut self, value: u8, right: bool) -> u8 {
@@ -838,20 +931,22 @@ impl<'a> Cpu<'a> {
         new_value
     }
 
-    fn srlr(&mut self, register: Register) {
+    fn srlr(&mut self, register: Register) -> u64 {
         let register_value = self.get_register(register.clone());
 
         let new_value = self._sl(register_value, true);
 
         self.set_register(register, new_value);
+        2
     }
 
-    fn srl_hl_ind(&mut self) {
+    fn srl_hl_ind(&mut self) -> u64 {
         let register_value = self.memory.read_from_8b(self.get_hl());
 
         let new_value = self._sl(register_value, true);
 
         self.memory.write_to_8b(self.get_hl(), new_value);
+        4
     }
 
     fn _swap(&mut self, value: u8) -> u8 {
@@ -862,20 +957,22 @@ impl<'a> Cpu<'a> {
         new_value
     }
 
-    fn swapr(&mut self, register: Register) {
+    fn swapr(&mut self, register: Register) -> u64 {
         let register_value = self.get_register(register.clone());
 
         let new_value = self._swap(register_value);
 
         self.set_register(register, new_value);
+        2
     }
 
-    fn swap_hl_ind(&mut self) {
+    fn swap_hl_ind(&mut self) -> u64 {
         let register_value = self.memory.read_from_8b(self.get_hl());
 
         let new_value = self._swap(register_value);
 
         self.memory.write_to_8b(self.get_hl(), new_value);
+        4
     }
 
     fn _bit(&mut self, bit_position: u8, value: u8) {
@@ -886,114 +983,188 @@ impl<'a> Cpu<'a> {
         self.set_f_flags(old_carry, true, false, bit_is_set == 0);
     }
 
-    fn bitr(&mut self, bit_position: u8, register: Register) {
+    fn bitr(&mut self, bit_position: u8, register: Register) -> u64 {
         let register_value = self.get_register(register);
         self._bit(bit_position, register_value);
+        2
     }
 
-    fn bit_hl_ind(&mut self, bit_position: u8) {
+    fn bit_hl_ind(&mut self, bit_position: u8) -> u64 {
         let register_value = self.memory.read_from_8b(self.get_hl());
         self._bit(bit_position, register_value);
+        3
     }
 
-    fn setr(&mut self, bit_position: u8, register: Register) {
+    fn setr(&mut self, bit_position: u8, register: Register) -> u64 {
         let register_value = self.get_register(register.clone());
-        let new_value = Self::modify_bit(register_value, bit_position, true);
+        let new_value = bit_utils::modify_bit(register_value, bit_position, true);
         self.set_register(register, new_value);
+        2
     }
 
-    fn set_hl_ind(&mut self, bit_position: u8) {
+    fn set_hl_ind(&mut self, bit_position: u8) -> u64 {
         let register_value = self.memory.read_from_8b(self.get_hl());
-        let new_value = Self::modify_bit(register_value, bit_position, true);
+        let new_value = bit_utils::modify_bit(register_value, bit_position, true);
         self.memory.write_to_8b(self.get_hl(), new_value);
+        4
     }
 
-    fn resetr(&mut self, bit_position: u8, register: Register) {
+    fn resetr(&mut self, bit_position: u8, register: Register) -> u64 {
         let register_value = self.get_register(register.clone());
-        let new_value = Self::modify_bit(register_value, bit_position, false);
+        let new_value = bit_utils::modify_bit(register_value, bit_position, false);
         self.set_register(register, new_value);
+        2
     }
 
-    fn reset_hl_ind(&mut self, bit_position: u8) {
+    fn reset_hl_ind(&mut self, bit_position: u8) -> u64 {
         let register_value = self.memory.read_from_8b(self.get_hl());
-        let new_value = Self::modify_bit(register_value, bit_position, false);
+        let new_value = bit_utils::modify_bit(register_value, bit_position, false);
         self.memory.write_to_8b(self.get_hl(), new_value);
+        4
     }
 
-    fn nop(&self) {}
+    fn nop(&self) -> u64 {
+        1
+    }
 
-    fn jp(&mut self, addr: u16) {
+    fn jp(&mut self, addr: u16) -> u64 {
         self.pc = addr;
+        4
     }
 
-    fn jp_hl(&mut self) {
+    fn jp_hl(&mut self) -> u64 {
         self.pc = self.get_hl();
+        1
     }
 
-    fn jp_cc(&mut self, cond: FlowCondition, addr: u16) {
+    fn jp_cc(&mut self, cond: FlowCondition, addr: u16) -> u64 {
         if self.evaluate_flow_condition(cond) {
             self.jp(addr);
+            4
+        } else {
+            3
         }
     }
 
-    fn jr(&mut self, imm: u8) {
+    fn jr(&mut self, imm: u8) -> u64 {
         self.pc = self.pc.wrapping_add_signed(imm as i8 as i16);
+        3
     }
 
-    fn jr_cc(&mut self, cond: FlowCondition, imm: u8) {
+    fn jr_cc(&mut self, cond: FlowCondition, imm: u8) -> u64 {
         if self.evaluate_flow_condition(cond) {
             self.jr(imm);
+            3
+        } else {
+            2
         }
     }
 
-    fn call(&mut self, addr: u16) {
+    fn call(&mut self, addr: u16) -> u64 {
         self.push_to_stack_16b(self.pc);
         self.pc = addr;
+        6
     }
 
-    fn call_cc(&mut self, cond: FlowCondition, addr: u16) {
+    fn call_cc(&mut self, cond: FlowCondition, addr: u16) -> u64 {
         if self.evaluate_flow_condition(cond) {
             self.call(addr);
+            6
+        } else {
+            3
         }
     }
 
-    fn ret(&mut self) {
+    fn ret(&mut self) -> u64 {
         self.pc = self.pop_from_stack_16b();
+        4
     }
 
-    fn ret_cc(&mut self, cond: FlowCondition) {
+    fn ret_cc(&mut self, cond: FlowCondition) -> u64 {
         if self.evaluate_flow_condition(cond) {
             self.ret();
+            5
+        } else {
+            2
         }
     }
 
-    fn ret_i(&mut self) {
+    fn ret_i(&mut self) -> u64 {
         self.ret();
         self.ei();
+        4
     }
 
-    fn rst(&mut self, addr: u8) {
+    fn rst(&mut self, addr: u8) -> u64 {
         self.push_to_stack_16b(self.pc);
-        self.pc = 0x0000 & (addr as u16);
+        self.pc = addr as u16;
+        4
     }
 
-    fn halt(&mut self) {
+    fn halt(&mut self) -> u64 {
         self.halted = true;
+        1
     }
 
-    fn stop(&mut self) {
+    fn stop(&mut self) -> u64 {
         self.halted = true;
+        1
     }
 
-    fn di(&mut self) {
+    fn di(&mut self) -> u64 {
         self.interrupts_enabled = false;
+        1
     }
 
-    fn ei(&mut self) {
+    fn ei(&mut self) -> u64 {
         self.interrupts_enabled = true;
+        1
     }
 
-    fn execute(&mut self, instruction: Instruction) {
+    fn clock(&mut self) {
+        let (instruction, size) = self.decode();
+
+        self.step(size);
+
+        let cycles = self.execute(instruction);
+
+        self.clock += cycles;
+    }
+
+    fn decode(&self) -> (Instruction, u16) {
+        let first_byte = self.memory.read_from_16b(self.pc);
+
+        match first_byte {
+            0xCB => self.decode_cb_instruction(),
+            _ => self.decode_generic_instruction(),
+        }
+    }
+
+    fn decode_cb_instruction(&self) -> (Instruction, u16) {
+        let original_pc = self.pc;
+        let mut helper_pc = original_pc + 1; // First byte is always 0xCB
+
+        let byte = self.memory.read_from_8b(helper_pc);
+
+        match byte {
+
+            _ => panic!("Unknown instruction: 0xCB {}", byte)
+        }
+    }
+
+    fn decode_generic_instruction(&self) -> (Instruction, u16) {
+        let original_pc = self.pc;
+        let mut helper_pc = original_pc;
+
+        let byte = self.memory.read_from_8b(helper_pc);
+
+    }
+
+    fn step(&mut self, instruction_size: u16) {
+        self.pc = self.pc.wrapping_add(instruction_size);
+    }
+
+    fn execute(&mut self, instruction: Instruction) -> u64 {
         match instruction {
             Instruction::LD(register_to, register_from) => self.ld(register_to, register_from),
             Instruction::LDImm(register_to, imm) => self.ld_imm(register_to, imm),
@@ -1055,7 +1226,7 @@ impl<'a> Cpu<'a> {
             Instruction::INC16(register) => self.inc_16(register),
             Instruction::DEC16(register) => self.dec_16(register),
             Instruction::ADDHL(register) => self.add_hl(register),
-            Instruction::ADDSPImm(imm) => self.add_spp_imm(imm),
+            Instruction::ADDSPImm(imm) => self.add_sp_imm(imm),
             Instruction::RLCA() => self.rlca(),
             Instruction::RRCA() => self.rrca(),
             Instruction::RRA() => self.rra(),
@@ -1098,113 +1269,7 @@ impl<'a> Cpu<'a> {
             Instruction::STOP() => self.stop(),
             Instruction::DI() => self.di(),
             Instruction::EI() => self.ei(),
-            _ => panic!("Uknown instruction"),
+            _ => panic!("Unknown instruction"),
         }
     }
-}
-
-enum Instruction {
-    LD(Register, Register),
-    LDImm(Register, u8),
-    LDFromHLInd(Register),
-    LDToHLInd(Register),
-    LDToHlIndImm(u8),
-    LDFromBCToAInd(),
-    LDFromDEToAInd(),
-    LDToBCIndFromA(),
-    LDToDEIndFromA(),
-    LDFromImmToA16(u16),
-    LDToImmFromA16(u16),
-    LDToAFromCInd(),
-    LDFromAToCInd(),
-    LDFromImmToA8(u8),
-    LDToImmFromA8(u8),
-    LDToAFromHLIndDec(),
-    LDToHLIndDecFromA(),
-    LDToAFromHLIndInc(),
-    LDToHLIndIncFromA(),
-    LDImm16(Register16, u16),
-    LDToImmFromSP(u16),
-    LDSPFromHL(),
-    PUSH(Register16),
-    POP(Register16),
-    LDHLFromAdjustedSP(i8),
-    ADD(Register),
-    ADDHLInd(),
-    ADDImm(u8),
-    ADDC(Register),
-    ADDCHLInd(),
-    ADDCImm(u8),
-    SUB(Register),
-    SUBHLInd(),
-    SUBImm(u8),
-    SUBC(Register),
-    SUBCHLInd(),
-    SUBCImm(u8),
-    CP(Register),
-    CPHLInd(),
-    CPImm(u8),
-    INC(Register),
-    INCHLInd(),
-    DEC(Register),
-    DECHLInd(),
-    AND(Register),
-    ANDHLInd(),
-    ANDImm(u8),
-    OR(Register),
-    ORHLInd(),
-    ORImm(u8),
-    XOR(Register),
-    XORHLInd(),
-    XORImm(u8),
-    CCF(),
-    SCF(),
-    DAA(),
-    CPL(),
-    INC16(Register16),
-    DEC16(Register16),
-    ADDHL(Register16),
-    ADDSPImm(u8),
-    RLCA(),
-    RRCA(),
-    RRA(),
-    RLA(),
-    RLCR(Register),
-    RRCR(Register),
-    RLCHLInd(),
-    RRCHLInd(),
-    RLR(Register),
-    RLHLInd(),
-    RRR(Register),
-    RRHLInd(),
-    SRAR(Register),
-    SRAHLInd(),
-    SLAR(Register),
-    SLAHLInd(),
-    SRLR(Register),
-    SRLHLInd(),
-    SWAPR(Register),
-    SWAPHLInd(),
-    BITR(u8, Register),
-    BITHLInd(u8),
-    RESETR(u8, Register),
-    RESETHLInd(u8),
-    SETR(u8, Register),
-    SETHLInd(u8),
-    NOP(),
-    JP(u16),
-    JPHL(),
-    JPCC(FlowCondition, u16),
-    JR(u8),
-    JRCC(FlowCondition, u8),
-    CALL(u16),
-    CALLCC(FlowCondition, u16),
-    RET(),
-    RETCC(FlowCondition),
-    RETI(),
-    RST(u8),
-    HALT(),
-    STOP(),
-    DI(),
-    EI(),
 }
