@@ -21,4 +21,10 @@ impl Memory {
         let bytes = [self.ram[address as usize], self.ram[address.wrapping_add(1) as usize]];
         u16::from_le_bytes(bytes)
     }
+
+    pub fn new() -> Self {
+        Self {
+            ram: Box::new([0; crate::console::constants::MEMORY_SIZE])
+        }
+    }
 }
