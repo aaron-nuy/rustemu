@@ -1,6 +1,6 @@
-use std::{ clone, f32::INFINITY };
+use std::{clone};
 
-use super::{ Memory, memory };
+use super::{ Memory };
 
 pub struct Cpu<'a> {
     a: u8,
@@ -13,6 +13,8 @@ pub struct Cpu<'a> {
     l: u8,
     sp: u16,
     pc: u16,
+    interrupts_enabled: bool,
+    halted: bool,
     memory: &'a mut Memory,
 }
 
@@ -36,6 +38,14 @@ enum Register16 {
     HL,
     SP,
     PC,
+}
+
+enum FlowCondition {
+    NotZero,
+    Zero,
+    NotCarry,
+    Carry,
+    Always
 }
 
 impl<'a> Cpu<'a> {
@@ -187,6 +197,29 @@ impl<'a> Cpu<'a> {
         self.set_register_bit(Register::F, Cpu::F_HALF_CARRY_FLAG_POS, half_carry);
     }
 
+    fn evaluate_flow_condition(&self, condtion: FlowCondition) -> bool {
+        match condtion {
+            FlowCondition::NotZero => !Self::get_bit(self.f, Cpu::F_ZERO_FLAG_POS),
+            FlowCondition::Zero => Self::get_bit(self.f, Cpu::F_ZERO_FLAG_POS),
+            FlowCondition::NotCarry => !Self::get_bit(self.f, Cpu::F_CARRY_FLAG_POS),
+            FlowCondition::Carry => Self::get_bit(self.f, Cpu::F_CARRY_FLAG_POS),
+            FlowCondition::Always => true,
+            _ => panic!("Unknown condtion")
+        }
+    }
+
+    fn push_to_stack_16b(&mut self, value: u16) {
+        let addr = self.sp.wrapping_sub(2);
+        self.memory.write_to_16b(addr, value);
+        self.sp = addr;
+    }
+
+    fn pop_from_stack_16b(&mut self) -> u16 {
+        let stack_value = self.memory.read_from_16b(self.sp);
+        self.sp = self.sp.wrapping_add(2);
+        stack_value
+    }
+
     // Instructions
 
     fn ld(&mut self, register_to: Register, register_from: Register) {
@@ -299,19 +332,17 @@ impl<'a> Cpu<'a> {
     }
 
     fn push(&mut self, register_from: Register16) {
-        let mut addr = self.sp.wrapping_sub(2);
-        self.memory.write_to_16b(addr, self.get_register_16(register_from));
-        self.sp = addr;
+        let register_value = self.get_register_16(register_from);
+        self.push_to_stack_16b(register_value);
     }
 
-    fn pop(&mut self, register_from: Register16) {
-        let stack_value = self.memory.read_from_16b(self.sp);
-        self.set_register_16(register_from, stack_value);
-        self.sp = self.sp.wrapping_add(2);
+    fn pop(&mut self, register: Register16) {
+        let stack_value = self.pop_from_stack_16b();
+        self.set_register_16(register, stack_value);
     }
 
     fn ld_hl_from_adjusted_sp(&mut self, imm: i8) {
-        let adjusted_sp = self.sp.wrapping_add_signed(imm as i16);
+        let adjusted_sp = self.sp.wrapping_add_signed(imm as i8 as i16);
         self.set_hl(adjusted_sp);
 
         let sp = self.sp;
@@ -332,11 +363,10 @@ impl<'a> Cpu<'a> {
     }
 
     fn _adc(&mut self, value: u8) {
-        let carry_flag = if Cpu::get_bit(self.f, Cpu::F_CARRY_FLAG_POS) { 1 } else { 0 };
+        let carry_flag = if Self::get_bit(self.f, Cpu::F_CARRY_FLAG_POS) { 1 } else { 0 };
 
         let (first_add, did_overflow1) = self.a.overflowing_add(value);
         let (second_add, did_overflow2) = first_add.overflowing_add(carry_flag);
-
 
         let half_carry = (self.a & 0x0f) + (value & 0x0f) + carry_flag > 0x0f;
         let did_overflow = did_overflow1 || did_overflow2;
@@ -376,7 +406,7 @@ impl<'a> Cpu<'a> {
 
     fn _sub(&mut self, value: u8) {
         let (new_register_value, did_borrow) = self.a.overflowing_sub(value);
-        let half_carry = (self.a & 0x0f) < (value & 0x0f);
+        let half_carry = self.a & 0x0f < value & 0x0f;
 
         self.set_f_flags(did_borrow, half_carry, true, new_register_value == 0);
 
@@ -389,8 +419,7 @@ impl<'a> Cpu<'a> {
         let (fist_sub, did_borrow1) = self.a.overflowing_sub(value);
         let (second_sub, did_borrow2) = fist_sub.overflowing_sub(carry_flag);
 
-
-        let half_carry = (self.a & 0x0f) < ((value & 0x0f) + carry_flag);
+        let half_carry = self.a & 0x0f < (value & 0x0f) + carry_flag;
         let did_borrow = did_borrow1 || did_borrow2;
 
         self.set_f_flags(did_borrow, half_carry, true, second_sub == 0);
@@ -428,7 +457,7 @@ impl<'a> Cpu<'a> {
 
     fn _cp(&mut self, value: u8) {
         let (new_register_value, did_borrow) = self.a.overflowing_sub(value);
-        let half_carry = (self.a & 0x0f) < (value & 0x0f);
+        let half_carry = self.a & 0x0f < value & 0x0f;
 
         self.set_f_flags(did_borrow, half_carry, true, new_register_value == 0);
     }
@@ -449,7 +478,7 @@ impl<'a> Cpu<'a> {
 
     fn inc(&mut self, register: Register) {
         let value = self.get_register(register.clone());
-        
+
         let (new_value, _) = value.overflowing_add(1);
         let half_carry = (value & 0x0f) + 0b1 > 0x0f;
         let current_carry = self.get_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS);
@@ -461,7 +490,7 @@ impl<'a> Cpu<'a> {
 
     fn inc_hl_ind(&mut self) {
         let value = self.memory.read_from_8b(self.get_hl());
-        
+
         let (new_value, _) = value.overflowing_add(1);
         let half_carry = (value & 0x0f) + 0b1 > 0x0f;
         let current_carry = self.get_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS);
@@ -473,7 +502,7 @@ impl<'a> Cpu<'a> {
 
     fn dec(&mut self, register: Register) {
         let value = self.get_register(register.clone());
-        
+
         let (new_value, _) = value.overflowing_sub(1);
         let half_carry = (value & 0x0f) == 0;
         let current_carry = self.get_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS);
@@ -485,7 +514,7 @@ impl<'a> Cpu<'a> {
 
     fn dec_hl_ind(&mut self) {
         let value = self.memory.read_from_8b(self.get_hl());
-        
+
         let (new_value, _) = value.overflowing_sub(1);
         let half_carry = (value & 0x0f) == 0;
         let current_carry = self.get_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS);
@@ -518,7 +547,7 @@ impl<'a> Cpu<'a> {
     }
 
     fn _or(&mut self, value: u8) {
-        let new_value= self.a | value;
+        let new_value = self.a | value;
 
         self.set_f_flags(false, false, false, new_value == 0);
 
@@ -540,7 +569,7 @@ impl<'a> Cpu<'a> {
     }
 
     fn _xor(&mut self, value: u8) {
-        let new_value= self.a ^ value;
+        let new_value = self.a ^ value;
 
         self.set_f_flags(false, false, false, new_value == 0);
 
@@ -577,11 +606,11 @@ impl<'a> Cpu<'a> {
         let current_sub = self.get_register_bit(Register::F, Cpu::F_SUB_FLAG_POS);
         let current_half_carry = self.get_register_bit(Register::F, Cpu::F_HALF_CARRY_FLAG_POS);
         let mut carry = self.get_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS);
-        
+
         let mut adjust = 0;
         let mut new_value: u8 = 0;
         if !current_sub {
-            if current_half_carry || (self.a & 0x0F) > 9 {
+            if current_half_carry || self.a & 0x0f > 9 {
                 adjust |= 0x06;
             }
             if carry || self.a > 0x99 {
@@ -598,9 +627,9 @@ impl<'a> Cpu<'a> {
             }
             new_value = self.a.wrapping_sub(adjust);
         }
-    
+
         self.set_f_flags(carry, false, current_sub, new_value == 0);
-        
+
         self.a = new_value;
     }
 
@@ -627,9 +656,9 @@ impl<'a> Cpu<'a> {
         let register_value = self.get_register_16(register);
         let hl = self.get_hl();
 
-        let (new_value , did_overflow)= hl.overflowing_add(register_value);
+        let (new_value, did_overflow) = hl.overflowing_add(register_value);
         let current_zero = self.get_register_bit(Register::F, Cpu::F_ZERO_FLAG_POS);
-        let half_carry = ((hl & 0x0fff) + (register_value & 0x0fff)) > 0x0fff;
+        let half_carry = (hl & 0x0fff) + (register_value & 0x0fff) > 0x0fff;
 
         self.set_f_flags(did_overflow, half_carry, false, current_zero);
 
@@ -637,7 +666,7 @@ impl<'a> Cpu<'a> {
     }
 
     fn add_spp_imm(&mut self, imm: u8) {
-        let new_value = self.sp.wrapping_add_signed(imm as i16);
+        let new_value = self.sp.wrapping_add_signed(imm as i8 as i16);
 
         let sp = self.sp;
 
@@ -649,41 +678,319 @@ impl<'a> Cpu<'a> {
         self.sp = new_value;
     }
 
+    fn _rotate(&mut self, value: u8, circular: bool, right: bool, accumulator: bool) -> u8 {
+        let carry_bit_pos: u8 = if right { 0x01 } else { 0x80 };
+        let old_carry = self.get_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS);
+        let carry = (value & carry_bit_pos) != 0;
+
+        let new_value = {
+            if circular && !right {
+                value.rotate_left(1)
+            } else if circular && right {
+                value.rotate_right(1)
+            } else if !circular && !right {
+                (value << 1) | (old_carry as u8)
+            } else {
+                (value >> 1) | ((old_carry as u8) << 0x07)
+            }
+        };
+
+        let zero = if accumulator { false } else { new_value == 0 };
+
+        self.set_f_flags(carry, false, false, zero);
+
+        new_value
+    }
+
     fn rlca(&mut self) {
-        let carry = (self.a & 0x80) != 0;
-        let new_value = self.a.rotate_left(1);
-
-        self.set_f_flags(carry, false, false, false);
-
-        self.a = new_value;
+        self.a = self._rotate(self.a, true, false, true);
     }
 
     fn rrca(&mut self) {
-        let carry = (self.a & 0x01) != 0;
-        let new_value = self.a.rotate_right(1);
-
-        self.set_f_flags(carry, false, false, false);
-
-        self.a = new_value;
+        self.a = self._rotate(self.a, true, true, true);
     }
 
     fn rra(&mut self) {
-        let old_carry = self.get_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS);
-        let new_carry = (self.a & 0x01) != 0;
-        
-        self.set_f_flags(new_carry, false, false, false);
-
-        self.a = (self.a >> 1) & ((old_carry as u8) << 0x80);
+        self.a = self._rotate(self.a, false, true, true);
     }
 
     fn rla(&mut self) {
+        self.a = self._rotate(self.a, false, false, true);
+    }
+
+    fn rlcr(&mut self, register: Register) {
+        let register_value = self.get_register(register.clone());
+
+        let new_value = self._rotate(register_value, true, false, false);
+
+        self.set_register(register, new_value);
+    }
+
+    fn rlc_hl_ind(&mut self) {
+        let register_value = self.memory.read_from_8b(self.get_hl());
+
+        let new_value = self._rotate(register_value, true, false, false);
+
+        self.memory.write_to_8b(self.get_hl(), new_value);
+    }
+
+    fn rrcr(&mut self, register: Register) {
+        let register_value = self.get_register(register.clone());
+
+        let new_value = self._rotate(register_value, true, true, false);
+
+        self.set_register(register, new_value);
+    }
+
+    fn rrc_hl_ind(&mut self) {
+        let register_value = self.memory.read_from_8b(self.get_hl());
+
+        let new_value = self._rotate(register_value, true, true, false);
+
+        self.memory.write_to_8b(self.get_hl(), new_value);
+    }
+
+    fn rrr(&mut self, register: Register) {
+        let register_value = self.get_register(register.clone());
+
+        let new_value = self._rotate(register_value, false, true, false);
+
+        self.set_register(register, new_value);
+    }
+
+    fn rlr(&mut self, register: Register) {
+        let register_value = self.get_register(register.clone());
+
+        let new_value = self._rotate(register_value, false, false, false);
+
+        self.set_register(register, new_value);
+    }
+
+    fn rr_hl_ind(&mut self) {
+        let register_value = self.memory.read_from_8b(self.get_hl());
+
+        let new_value = self._rotate(register_value, false, true, false);
+
+        self.memory.write_to_8b(self.get_hl(), new_value);
+    }
+
+    fn rl_hl_ind(&mut self) {
+        let register_value = self.memory.read_from_8b(self.get_hl());
+
+        let new_value = self._rotate(register_value, false, false, false);
+
+        self.memory.write_to_8b(self.get_hl(), new_value);
+    }
+
+    fn _sa(&mut self, value: u8, right: bool) -> u8 {
+        let msb = value & 0x80;
+        let lsb = value & 0x01;
+
+        let carry = if right { lsb != 0 } else { msb != 0 };
+        let new_value = if right { (value >> 1) | msb } else { value << 1 };
+
+        self.set_f_flags(carry, false, false, new_value == 0);
+
+        new_value
+    }
+
+    fn srar(&mut self, register: Register) {
+        let register_value = self.get_register(register.clone());
+
+        let new_value = self._sa(register_value, true);
+
+        self.set_register(register, new_value);
+    }
+
+    fn sra_hl_ind(&mut self) {
+        let register_value = self.memory.read_from_8b(self.get_hl());
+
+        let new_value = self._sa(register_value, true);
+
+        self.memory.write_to_8b(self.get_hl(), new_value);
+    }
+
+    fn slar(&mut self, register: Register) {
+        let register_value = self.get_register(register.clone());
+
+        let new_value = self._sa(register_value, false);
+
+        self.set_register(register, new_value);
+    }
+
+    fn sla_hl_ind(&mut self) {
+        let register_value = self.memory.read_from_8b(self.get_hl());
+
+        let new_value = self._sa(register_value, false);
+
+        self.memory.write_to_8b(self.get_hl(), new_value);
+    }
+
+    fn _sl(&mut self, value: u8, right: bool) -> u8 {
+        let msb = value & 0x80;
+        let lsb = value & 0x01;
+
+        let carry = if right { lsb != 0 } else { msb != 0 };
+        let new_value = if right { value >> 1 } else { value << 1 };
+
+        self.set_f_flags(carry, false, false, new_value == 0);
+
+        new_value
+    }
+
+    fn srlr(&mut self, register: Register) {
+        let register_value = self.get_register(register.clone());
+
+        let new_value = self._sl(register_value, true);
+
+        self.set_register(register, new_value);
+    }
+
+    fn srl_hl_ind(&mut self) {
+        let register_value = self.memory.read_from_8b(self.get_hl());
+
+        let new_value = self._sl(register_value, true);
+
+        self.memory.write_to_8b(self.get_hl(), new_value);
+    }
+
+    fn _swap(&mut self, value: u8) -> u8 {
+        let new_value = value.rotate_left(4);
+
+        self.set_f_flags(false, false, false, new_value == 0);
+
+        new_value
+    }
+
+    fn swapr(&mut self, register: Register) {
+        let register_value = self.get_register(register.clone());
+
+        let new_value = self._swap(register_value);
+
+        self.set_register(register, new_value);
+    }
+
+    fn swap_hl_ind(&mut self) {
+        let register_value = self.memory.read_from_8b(self.get_hl());
+
+        let new_value = self._swap(register_value);
+
+        self.memory.write_to_8b(self.get_hl(), new_value);
+    }
+
+    fn _bit(&mut self, bit_position: u8, value: u8) {
         let old_carry = self.get_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS);
-        let new_carry = (self.a & 0x80) != 0;
-        
-        self.set_f_flags(new_carry, false, false, false);
 
-        self.a = (self.a << 1) & (old_carry as u8);
+        let bit_is_set = value & (1 << bit_position);
 
+        self.set_f_flags(old_carry, true, false, bit_is_set == 0);
+    }
+
+    fn bitr(&mut self, bit_position: u8, register: Register) {
+        let register_value = self.get_register(register);
+        self._bit(bit_position, register_value);
+    }
+
+    fn bit_hl_ind(&mut self, bit_position: u8) {
+        let register_value = self.memory.read_from_8b(self.get_hl());
+        self._bit(bit_position, register_value);
+    }
+
+    fn setr(&mut self, bit_position: u8, register: Register) {
+        let register_value = self.get_register(register.clone());
+        let new_value = Self::modify_bit(register_value, bit_position, true);
+        self.set_register(register, new_value);
+    }
+
+    fn set_hl_ind(&mut self, bit_position: u8) {
+        let register_value = self.memory.read_from_8b(self.get_hl());
+        let new_value = Self::modify_bit(register_value, bit_position, true);
+        self.memory.write_to_8b(self.get_hl(), new_value);
+    }
+
+    fn resetr(&mut self, bit_position: u8, register: Register) {
+        let register_value = self.get_register(register.clone());
+        let new_value = Self::modify_bit(register_value, bit_position, false);
+        self.set_register(register, new_value);
+    }
+
+    fn reset_hl_ind(&mut self, bit_position: u8) {
+        let register_value = self.memory.read_from_8b(self.get_hl());
+        let new_value = Self::modify_bit(register_value, bit_position, false);
+        self.memory.write_to_8b(self.get_hl(), new_value);
+    }
+
+    fn nop(&self) {}
+
+    fn jp(&mut self, addr: u16) {
+        self.pc = addr;
+    }
+
+    fn jp_hl(&mut self) {
+        self.pc = self.get_hl();
+    }
+
+    fn jp_cc(&mut self, cond: FlowCondition, addr: u16) {
+        if self.evaluate_flow_condition(cond) {
+            self.jp(addr);
+        }
+    }
+
+    fn jr(&mut self, imm: u8) {
+        self.pc = self.pc.wrapping_add_signed(imm as i8 as i16);
+    }
+
+    fn jr_cc(&mut self, cond: FlowCondition, imm: u8) {
+        if self.evaluate_flow_condition(cond) {
+            self.jr(imm);
+        }
+    }
+
+    fn call(&mut self, addr: u16) {
+        self.push_to_stack_16b(self.pc);
+        self.pc = addr;
+    }
+
+    fn call_cc(&mut self, cond: FlowCondition, addr: u16) {
+        if self.evaluate_flow_condition(cond) {
+            self.call(addr);
+        }
+    }
+
+    fn ret(&mut self) {
+        self.pc = self.pop_from_stack_16b();
+    }
+
+    fn ret_cc(&mut self, cond: FlowCondition) {
+        if self.evaluate_flow_condition(cond) {
+            self.ret();
+        }
+    }
+
+    fn ret_i(&mut self) {
+        self.ret();
+        self.ei();
+    }
+
+    fn rst(&mut self, addr: u8) {
+        self.push_to_stack_16b(self.pc);
+        self.pc = 0x0000 & (addr as u16);
+    }
+
+    fn halt(&mut self) {
+        self.halted = true;
+    }
+
+    fn stop(&mut self) {
+        self.halted = true;
+    }
+
+    fn di(&mut self) {
+        self.interrupts_enabled = false;
+    }
+
+    fn ei(&mut self) {
+        self.interrupts_enabled = true;
     }
 
     fn execute(&mut self, instruction: Instruction) {
@@ -753,6 +1060,44 @@ impl<'a> Cpu<'a> {
             Instruction::RRCA() => self.rrca(),
             Instruction::RRA() => self.rra(),
             Instruction::RLA() => self.rla(),
+            Instruction::RLCR(register) => self.rlcr(register),
+            Instruction::RRCR(register) => self.rrcr(register),
+            Instruction::RLCHLInd() => self.rlc_hl_ind(),
+            Instruction::RRCHLInd() => self.rrc_hl_ind(),
+            Instruction::RLR(register) => self.rlr(register),
+            Instruction::RRR(register) => self.rrr(register),
+            Instruction::RLHLInd() => self.rl_hl_ind(),
+            Instruction::RRHLInd() => self.rr_hl_ind(),
+            Instruction::SRAR(register) => self.srar(register),
+            Instruction::SRAHLInd() => self.sra_hl_ind(),
+            Instruction::SLAR(register) => self.slar(register),
+            Instruction::SLAHLInd() => self.sla_hl_ind(),
+            Instruction::SRLR(register) => self.srlr(register),
+            Instruction::SRLHLInd() => self.srl_hl_ind(),
+            Instruction::SWAPR(register) => self.swapr(register),
+            Instruction::SWAPHLInd() => self.swap_hl_ind(),
+            Instruction::BITR(bit, register) => self.bitr(bit, register),
+            Instruction::BITHLInd(bit) => self.bit_hl_ind(bit),
+            Instruction::SETR(bit, register) => self.setr(bit, register),
+            Instruction::SETHLInd(bit) => self.set_hl_ind(bit),
+            Instruction::RESETR(bit, register) => self.resetr(bit, register),
+            Instruction::RESETHLInd(bit) => self.reset_hl_ind(bit),
+            Instruction::NOP() => self.nop(),
+            Instruction::JP(addr) => self.jp(addr),
+            Instruction::JPHL() => self.jp_hl(),
+            Instruction::JPCC(cond, addr) => self.jp_cc(cond, addr),
+            Instruction::JR(imm) => self.jr(imm),
+            Instruction::JRCC(cond, imm) => self.jr_cc(cond, imm),
+            Instruction::CALL(addr) => self.call(addr),
+            Instruction::CALLCC(cond, addr) => self.call_cc(cond, addr),
+            Instruction::RET() => self.ret(),
+            Instruction::RETCC(cond) => self.ret_cc(cond),
+            Instruction::RETI() => self.ret_i(),
+            Instruction::RST(addr) => self.rst(addr),
+            Instruction::HALT() => self.halt(),
+            Instruction::STOP() => self.stop(),
+            Instruction::DI() => self.di(),
+            Instruction::EI() => self.ei(),
             _ => panic!("Uknown instruction"),
         }
     }
@@ -825,4 +1170,41 @@ enum Instruction {
     RRA(),
     RLA(),
     RLCR(Register),
+    RRCR(Register),
+    RLCHLInd(),
+    RRCHLInd(),
+    RLR(Register),
+    RLHLInd(),
+    RRR(Register),
+    RRHLInd(),
+    SRAR(Register),
+    SRAHLInd(),
+    SLAR(Register),
+    SLAHLInd(),
+    SRLR(Register),
+    SRLHLInd(),
+    SWAPR(Register),
+    SWAPHLInd(),
+    BITR(u8, Register),
+    BITHLInd(u8),
+    RESETR(u8, Register),
+    RESETHLInd(u8),
+    SETR(u8, Register),
+    SETHLInd(u8),
+    NOP(),
+    JP(u16),
+    JPHL(),
+    JPCC(FlowCondition, u16),
+    JR(u8),
+    JRCC(FlowCondition, u8),
+    CALL(u16),
+    CALLCC(FlowCondition, u16),
+    RET(),
+    RETCC(FlowCondition),
+    RETI(),
+    RST(u8),
+    HALT(),
+    STOP(),
+    DI(),
+    EI(),
 }
