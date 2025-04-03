@@ -1538,6 +1538,15 @@ mod tests {
         cpu.clock(&mut memory);
 
         assert_eq!(cpu.get_register(Register::E), 0);
+
+        memory.write_to_8b(4, 0xCB); // 0xCB
+        memory.write_to_8b(5, 0b10_011_000 | R8Operand::to_byte(R8Operand::HLInd)); // res 3, [hl]
+
+        cpu.clock(&mut memory);
+
+        let value_hl_ind = memory.read_from_8b(cpu.get_register_16(Register16::HL));
+        
+        assert_eq!(value_hl_ind, 0xC3);
     }
 
     #[test]
@@ -1564,5 +1573,15 @@ mod tests {
         let bit_value = !bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS);
 
         assert_eq!(bit_value, true, "C is {}", cpu.get_register(Register::C));
+
+        memory.write_to_8b(4, 0xCB); // 0xCB
+        memory.write_to_8b(5, 0b01_011_000 | R8Operand::to_byte(R8Operand::HLInd)); // bit 3, [hl]
+
+        cpu.clock(&mut memory);
+        
+        let value_hl_ind = memory.read_from_8b(cpu.get_register_16(Register16::HL));
+        let bit_value = !bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS);
+
+        assert_eq!(bit_value, true, "HLInd is {}", value_hl_ind);
     }
 }
