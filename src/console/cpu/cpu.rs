@@ -31,7 +31,7 @@ impl Cpu {
 
     // Utility
 
-    pub fn set_register(&mut self, register: Register, value: u8) {
+    fn set_register(&mut self, register: Register, value: u8) {
         match register {
             Register::A => {
                 self.a = value;
@@ -67,7 +67,7 @@ impl Cpu {
         }
     }
 
-    pub fn set_register_16(&mut self, register: Register16, value: u16) {
+    fn set_register_16(&mut self, register: Register16, value: u16) {
         match register {
             Register16::AF => self.set_af(value),
             Register16::BC => self.set_bc(value),
@@ -82,7 +82,7 @@ impl Cpu {
         }
     }
 
-    pub fn get_register(&self, register: Register) -> u8 {
+    fn get_register(&self, register: Register) -> u8 {
         match register {
             Register::A => self.a,
             Register::B => self.b,
@@ -95,7 +95,7 @@ impl Cpu {
         }
     }
 
-    pub fn get_register_16(&self, register: Register16) -> u16 {
+    fn get_register_16(&self, register: Register16) -> u16 {
         match register {
             Register16::AF => self.get_af(),
             Register16::BC => self.get_bc(),
@@ -1361,7 +1361,7 @@ impl Cpu {
         self.pc = self.pc.wrapping_add(instruction_size);
     }
 
-    pub fn execute(&mut self, instruction: Instruction, memory: &mut Memory) -> u64 {
+    fn execute(&mut self, instruction: Instruction, memory: &mut Memory) -> u64 {
         match instruction {
             Instruction::LD(register_to, register_from) => self.ld(register_to, register_from),
             Instruction::LDImm(register_to, imm) => self.ld_imm(register_to, imm),
@@ -1467,5 +1467,102 @@ impl Cpu {
             Instruction::DI() => self.di(),
             Instruction::EI() => self.ei()
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use crate::console::cpu::cpu::*;
+    use crate::console::cpu::instruction::R8Operand;
+    use crate::console::cpu::register::*;
+    use crate::console::memory::*;
+    use crate::console::utils::bit_utils;
+
+    #[test]
+    fn test_cpu_cb_set() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        memory.write_to_8b(0, 0xCB); // 0xCB
+        memory.write_to_8b(1, 0b11_001_000 | R8Operand::to_byte(R8Operand::E)); // set 1, e
+        
+        cpu.clock(&mut memory);
+
+        assert_eq!(cpu.get_register(Register::E), 2);
+
+        memory.write_to_8b(2, 0xCB); // 0xCB
+        memory.write_to_8b(3, 0b11_000_000 | R8Operand::to_byte(R8Operand::D)); // set 0, d
+        
+        cpu.clock(&mut memory);
+
+        assert_eq!(cpu.get_register(Register::D), 1);
+
+        memory.write_to_8b(4, 0xCB); // 0xCB
+        memory.write_to_8b(5, 0b11_011_000 | R8Operand::to_byte(R8Operand::A)); // set 3, a
+        
+        cpu.clock(&mut memory);
+
+        assert_eq!(cpu.get_register(Register::A), 8);
+
+        memory.write_to_8b(6, 0xCB); // 0xCB
+        memory.write_to_8b(7, 0b11_010_000 | R8Operand::to_byte(R8Operand::HLInd)); // set 2, [hl]
+        
+        cpu.clock(&mut memory);
+
+        let value_hl_ind = memory.read_from_8b(cpu.get_register_16(Register16::HL));
+
+        assert_eq!(value_hl_ind, 0xCB | 0b000_0100);
+
+        // ensure values didn't change
+        assert_eq!(cpu.get_register(Register::A), 8);
+        assert_eq!(cpu.get_register(Register::E), 2);
+        assert_eq!(cpu.get_register(Register::D), 1);
+    }
+
+    #[test]
+    fn test_cpu_cb_res() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        memory.write_to_8b(0, 0xCB); // 0xCB
+        memory.write_to_8b(1, 0b11_001_000 | R8Operand::to_byte(R8Operand::E)); // set 1, e
+        
+        memory.write_to_8b(2, 0xCB); // 0xCB
+        memory.write_to_8b(3, 0b10_001_000 | R8Operand::to_byte(R8Operand::E)); // res 1, e
+
+        cpu.clock(&mut memory);
+        
+        assert_eq!(cpu.get_register(Register::E), 2);
+
+        cpu.clock(&mut memory);
+
+        assert_eq!(cpu.get_register(Register::E), 0);
+    }
+
+    #[test]
+    fn test_cpu_cb_bit() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+        
+        cpu.set_register(Register::C, 0b0010_0000);
+        
+        memory.write_to_8b(0, 0xCB); // 0xCB
+        memory.write_to_8b(1, 0b01_001_000 | R8Operand::to_byte(R8Operand::C)); // bit 1, c
+
+        cpu.clock(&mut memory);
+        
+        let bit_value = !bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS);
+
+        assert_eq!(bit_value, false, "C is {}", cpu.get_register(Register::C));
+
+        memory.write_to_8b(2, 0xCB); // 0xCB
+        memory.write_to_8b(3, 0b01_101_000 | R8Operand::to_byte(R8Operand::C)); // bit 5, c
+
+        cpu.clock(&mut memory);
+        
+        let bit_value = !bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS);
+
+        assert_eq!(bit_value, true, "C is {}", cpu.get_register(Register::C));
     }
 }
