@@ -1477,278 +1477,220 @@ mod tests {
     use crate::console::cpu::instruction::R8Operand;
     use crate::console::utils::bit_utils;
 
-    #[test]
-    fn test_cpu_cb_set() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        memory.write_to_8b(0, 0xCB); // 0xCB
-        memory.write_to_8b(1, 0b11_001_000 | R8Operand::to_byte(R8Operand::E)); // set 1, e
-        
-        cpu.clock(&mut memory);
-
-        assert_eq!(cpu.get_register(Register::E), 2);
-
-        memory.write_to_8b(2, 0xCB); // 0xCB
-        memory.write_to_8b(3, 0b11_000_000 | R8Operand::to_byte(R8Operand::D)); // set 0, d
-        
-        cpu.clock(&mut memory);
-
-        assert_eq!(cpu.get_register(Register::D), 1);
-
-        memory.write_to_8b(4, 0xCB); // 0xCB
-        memory.write_to_8b(5, 0b11_011_000 | R8Operand::to_byte(R8Operand::A)); // set 3, a
-        
-        cpu.clock(&mut memory);
-
-        assert_eq!(cpu.get_register(Register::A), 8);
-
-        memory.write_to_8b(6, 0xCB); // 0xCB
-        memory.write_to_8b(7, 0b11_010_000 | R8Operand::to_byte(R8Operand::HLInd)); // set 2, [hl]
-        
-        cpu.clock(&mut memory);
-
-        let value_hl_ind = memory.read_from_8b(cpu.get_register_16(Register16::HL));
-
-        assert_eq!(value_hl_ind, 0xCB | 0b000_0100);
-
-        // ensure values didn't change
-        assert_eq!(cpu.get_register(Register::A), 8);
-        assert_eq!(cpu.get_register(Register::E), 2);
-        assert_eq!(cpu.get_register(Register::D), 1);
+    
+    fn execute_cb_instruction(cpu: &mut Cpu, memory: &mut Memory, offset: &mut u16, subopcode: u8) {
+        memory.write_to_8b(*offset, 0xCB);
+        memory.write_to_8b(*offset + 1, subopcode);
+        *offset += 2;
+        cpu.clock(memory);
     }
-
-    #[test]
-    fn test_cpu_cb_res() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
-        memory.write_to_8b(0, 0xCB); // 0xCB
-        memory.write_to_8b(1, 0b11_001_000 | R8Operand::to_byte(R8Operand::E)); // set 1, e
-        
-        memory.write_to_8b(2, 0xCB); // 0xCB
-        memory.write_to_8b(3, 0b10_001_000 | R8Operand::to_byte(R8Operand::E)); // res 1, e
-
-        cpu.clock(&mut memory);
-        
-        assert_eq!(cpu.get_register(Register::E), 2);
-
-        cpu.clock(&mut memory);
-
-        assert_eq!(cpu.get_register(Register::E), 0);
-
-        memory.write_to_8b(4, 0xCB); // 0xCB
-        memory.write_to_8b(5, 0b10_011_000 | R8Operand::to_byte(R8Operand::HLInd)); // res 3, [hl]
-
-        cpu.clock(&mut memory);
-
-        let value_hl_ind = memory.read_from_8b(cpu.get_register_16(Register16::HL));
-        
-        assert_eq!(value_hl_ind, 0xC3);
+    
+    fn preload_hl(memory: &mut Memory, cpu: &Cpu, value: u8) {
+        let hl_addr = cpu.get_register_16(Register16::HL);
+        memory.write_to_8b(hl_addr, value);
     }
-
+    
+    fn carry_flag(cpu: &Cpu) -> bool {
+        bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS)
+    }
+    
+    macro_rules! assert_reg {
+        ($cpu:expr, $reg:expr, $expected:expr) => {
+            assert_eq!(
+                $cpu.get_register($reg),
+                $expected,
+                "{} expected to be {:#04X}",
+                stringify!($reg),
+                $expected
+            )
+        };
+    }
+    
+    macro_rules! assert_mem {
+        ($memory:expr, $addr:expr, $expected:expr) => {
+            assert_eq!(
+                $memory.read_from_8b($addr),
+                $expected,
+                "Memory at {:#04X} expected to be {:#04X}",
+                $addr,
+                $expected
+            )
+        };
+    }
+    
     #[test]
-    fn test_cpu_cb_bit() {
+    fn test_cb_set_operations() {
         let mut cpu = Cpu::new();
         let mut memory = Memory::new();
-        
+        let mut offset: u16 = 0;
+    
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b11_001_000 | R8Operand::to_byte(R8Operand::E));
+        assert_reg!(cpu, Register::E, 0b0000_0010);
+    
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b11_000_000 | R8Operand::to_byte(R8Operand::D));
+        assert_reg!(cpu, Register::D, 0b0000_0001);
+    
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b11_011_000 | R8Operand::to_byte(R8Operand::A));
+        assert_reg!(cpu, Register::A, 0b0000_1000);
+    
+        let hl_addr = cpu.get_register_16(Register16::HL);
+        preload_hl(&mut memory, &cpu, 0xCB);
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b11_010_000 | R8Operand::to_byte(R8Operand::HLInd));
+        assert_mem!(memory, hl_addr, 0xCB | 0b0000_0100);
+    
+        // Ensure other registers remain unchanged.
+        assert_reg!(cpu, Register::A, 0b0000_1000);
+        assert_reg!(cpu, Register::E, 0b0000_0010);
+        assert_reg!(cpu, Register::D, 0b0000_0001);
+    }
+    
+    #[test]
+    fn test_cb_res_operations() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+        let mut offset: u16 = 0;
+    
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b11_001_000 | R8Operand::to_byte(R8Operand::E));
+        assert_reg!(cpu, Register::E, 0b0000_0010);
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b10_001_000 | R8Operand::to_byte(R8Operand::E));
+        assert_reg!(cpu, Register::E, 0);
+    
+        let hl_addr = cpu.get_register_16(Register16::HL);
+        preload_hl(&mut memory, &cpu, 0xCB);
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b10_011_000 | R8Operand::to_byte(R8Operand::HLInd));
+        assert_mem!(memory, hl_addr, 0xC3);
+    }
+    
+    #[test]
+    fn test_cb_bit_operations() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+        let mut offset: u16 = 0;
+    
         cpu.set_register(Register::C, 0b0010_0000);
-        
-        memory.write_to_8b(0, 0xCB); // 0xCB
-        memory.write_to_8b(1, 0b01_001_000 | R8Operand::to_byte(R8Operand::C)); // bit 1, c
-
-        cpu.clock(&mut memory);
-        
-        let bit_value = !bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS);
-
-        assert_eq!(bit_value, false);
-
-        memory.write_to_8b(2, 0xCB); // 0xCB
-        memory.write_to_8b(3, 0b01_101_000 | R8Operand::to_byte(R8Operand::C)); // bit 5, c
-
-        cpu.clock(&mut memory);
-        
-        let bit_value = !bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS);
-
-        assert_eq!(bit_value, true);
-
-        memory.write_to_8b(4, 0xCB); // 0xCB
-        memory.write_to_8b(5, 0b01_011_000 | R8Operand::to_byte(R8Operand::HLInd)); // bit 3, [hl]
-
-        cpu.clock(&mut memory);
-        
-        let bit_value = !bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS);
-
-        assert_eq!(bit_value, true);
+    
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b01_001_000 | R8Operand::to_byte(R8Operand::C));
+        assert!(bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS),
+                "BIT 1 in C should set the zero flag");
+    
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b01_101_000 | R8Operand::to_byte(R8Operand::C));
+        assert!(!bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS),
+                "BIT 5 in C should reset the zero flag");
+    
+        preload_hl(&mut memory, &cpu, 0b0000_1000);
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b01_011_000 | R8Operand::to_byte(R8Operand::HLInd));
+        assert!(!bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS),
+                "BIT 3 in [HL] should reset the zero flag");
     }
-
+    
     #[test]
-    fn test_cpu_cb_swap() {
+    fn test_cb_swap_operations() {
         let mut cpu = Cpu::new();
         let mut memory = Memory::new();
-
+        let mut offset: u16 = 0;
+    
         cpu.set_register(Register::E, 0b1111_0000);
-
-        memory.write_to_8b(0, 0xCB); // 0xCB
-        memory.write_to_8b(1, 0b00_110_000 | R8Operand::to_byte(R8Operand::E)); // swap e
-        
-        cpu.clock(&mut memory);
-
-        assert_eq!(cpu.get_register(Register::E), 0b0000_1111);
-
-        memory.write_to_8b(2, 0xCB); // 0xCB
-        memory.write_to_8b(3, 0b00_110_000 | R8Operand::to_byte(R8Operand::HLInd)); // swap [hl]
-        
-        cpu.clock(&mut memory);
-
-        let value_hl_ind = memory.read_from_8b(cpu.get_register_16(Register16::HL));
-
-        assert_eq!(value_hl_ind, 0xBC);
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_110_000 | R8Operand::to_byte(R8Operand::E));
+        assert_reg!(cpu, Register::E, 0b0000_1111);
+    
+        let hl_addr = cpu.get_register_16(Register16::HL);
+        preload_hl(&mut memory, &cpu, 0xCB);
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_110_000 | R8Operand::to_byte(R8Operand::HLInd));
+        assert_mem!(memory, hl_addr, 0xBC);
     }
-
+    
     #[test]
-    fn test_cpu_cb_srl() {
+    fn test_cb_srl_operations() {
         let mut cpu = Cpu::new();
         let mut memory = Memory::new();
-
+        let mut offset: u16 = 0;
+    
         cpu.set_register(Register::B, 0b1111_0000);
-
-        memory.write_to_8b(0, 0xCB); // 0xCB
-        memory.write_to_8b(1, 0b00_111_000 | R8Operand::to_byte(R8Operand::B)); // srl B
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_111_000 | R8Operand::to_byte(R8Operand::B));
+        let original_lsb = (0b1111_0000 & 1) != 0;
+        assert_reg!(cpu, Register::B, 0b0111_1000);
+        assert_eq!(carry_flag(&cpu), original_lsb, "Carry flag should match original LSB");
+    
+        let hl_addr = cpu.get_register_16(Register16::HL);
+        preload_hl(&mut memory, &cpu, 0b1100_1011);
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_111_000 | R8Operand::to_byte(R8Operand::HLInd));
+        assert_mem!(memory, hl_addr, 0b0110_0101);
+        assert!(carry_flag(&cpu), "SRL [HL] should set the carry flag");
+    }
+    
+    #[test]
+    fn test_cb_rrc_operations() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+        let mut offset: u16 = 0;
         
-        let original_lsb: bool = (cpu.get_register(Register::B) & 1) != 0;
-
-        cpu.clock(&mut memory);
-
-        let carry = bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS);
-        assert_eq!(cpu.get_register(Register::B), 0b0111_1000);
-        assert_eq!(original_lsb, carry);
-
-        memory.write_to_8b(2, 0xCB); // 0xCB
-        memory.write_to_8b(3, 0b00_111_000 | R8Operand::to_byte(R8Operand::HLInd)); // srl [hl]
-
-        cpu.clock(&mut memory);
-        let carry = bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS);
-        let value_hl_ind = memory.read_from_8b(cpu.get_register_16(Register16::HL));
-
-        assert_eq!(value_hl_ind, 0b01100101);
-        assert_eq!(carry, true);
-
-    }
-
-    #[test]
-    fn test_cpu_cb_rrc() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-
         cpu.set_register(Register::E, 0b1111_0000);
-
-        memory.write_to_8b(0, 0xCB); // 0xCB
-        memory.write_to_8b(1, 0b00_001_000 | R8Operand::to_byte(R8Operand::E)); // srl e
-
-        cpu.clock(&mut memory);
-
-        let carry = bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS);
-        assert_eq!(cpu.get_register(Register::E), 0b0111_1000);
-        assert_eq!(false, carry);
-
-        memory.write_to_8b(2, 0xCB); // 0xCB
-        memory.write_to_8b(3, 0b00_001_000 | R8Operand::to_byte(R8Operand::HLInd)); // srl [hl]
-
-        cpu.clock(&mut memory);
-        let carry = bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS);
-        let value_hl_ind = memory.read_from_8b(cpu.get_register_16(Register16::HL));
-
-        assert_eq!(value_hl_ind, 0b11100101);
-        assert_eq!(carry, true);
-
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_001_000 | R8Operand::to_byte(R8Operand::E));
+        assert_reg!(cpu, Register::E, 0b0111_1000);
+        assert!(!carry_flag(&cpu), "RRC on E should not set the carry flag");
+    
+        // Test RRC on memory pointed by HL.
+        let hl_addr = cpu.get_register_16(Register16::HL);
+        preload_hl(&mut memory, &cpu, 0b1110_0101);
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_001_000 | R8Operand::to_byte(R8Operand::HLInd));
+        assert_mem!(memory, hl_addr, 0b1111_0010);
+        assert!(carry_flag(&cpu), "RRC [HL] should set the carry flag");
     }
-
+    
     #[test]
-    fn test_cpu_cb_rlc() {
+    fn test_cb_rlc_operations() {
         let mut cpu = Cpu::new();
         let mut memory = Memory::new();
-
+        let mut offset: u16 = 0;
+    
         cpu.set_register(Register::A, 0b0000_1111);
-
-        memory.write_to_8b(0, 0xCB); // 0xCB
-        memory.write_to_8b(1, 0b00_000_000 | R8Operand::to_byte(R8Operand::A)); // srl a
-
-        cpu.clock(&mut memory);
-
-        let carry = bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS);
-        assert_eq!(cpu.get_register(Register::A), 0b0001_1110);
-        assert_eq!(false, carry);
-
-        memory.write_to_8b(2, 0xCB); // 0xCB
-        memory.write_to_8b(3, 0b00_000_000 | R8Operand::to_byte(R8Operand::HLInd)); // srl [hl]
-
-        cpu.clock(&mut memory);
-        let carry = bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS);
-        let value_hl_ind = memory.read_from_8b(cpu.get_register_16(Register16::HL));
-
-        assert_eq!(value_hl_ind, 0b10010111);
-        assert_eq!(carry, true);
-
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_000_000 | R8Operand::to_byte(R8Operand::A));
+        assert_reg!(cpu, Register::A, 0b0001_1110);
+        assert!(!carry_flag(&cpu), "RLC on A should not set the carry flag");
+    
+        let hl_addr = cpu.get_register_16(Register16::HL);
+        preload_hl(&mut memory, &cpu, 0b0010_1111);
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_000_000 | R8Operand::to_byte(R8Operand::HLInd));
+        assert_mem!(memory, hl_addr, 0b0101_1110);
+        assert!(!carry_flag(&cpu), "RLC [HL] should not set the carry flag");
     }
-
+    
     #[test]
-    fn test_cpu_cb_sra() {
+    fn test_cb_sra_operations() {
         let mut cpu = Cpu::new();
         let mut memory = Memory::new();
-
+        let mut offset: u16 = 0;
+    
         cpu.set_register(Register::D, 0b1111_0000);
-
-        memory.write_to_8b(0, 0xCB); // 0xCB
-        memory.write_to_8b(1, 0b00_101_000 | R8Operand::to_byte(R8Operand::D)); // srl D
-        
-        let original_lsb: bool = (cpu.get_register(Register::D) & 1) != 0;
-
-        cpu.clock(&mut memory);
-
-        let carry = bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS);
-        assert_eq!(cpu.get_register(Register::D), 0b1111_1000);
-        assert_eq!(original_lsb, carry);
-
-        memory.write_to_8b(2, 0xCB); // 0xCB
-        memory.write_to_8b(3, 0b00_101_000 | R8Operand::to_byte(R8Operand::HLInd)); // srl [hl]
-
-        cpu.clock(&mut memory);
-        let carry = bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS);
-        let value_hl_ind = memory.read_from_8b(cpu.get_register_16(Register16::HL));
-
-        assert_eq!(value_hl_ind, 0b11100101);
-        assert_eq!(carry, true);
-
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_101_000 | R8Operand::to_byte(R8Operand::D));
+        let original_lsb = (0b1111_0000 & 1) != 0;
+        assert_reg!(cpu, Register::D, 0b1111_1000);
+        assert_eq!(carry_flag(&cpu), original_lsb, "SRA D carry flag mismatch");
+    
+        let hl_addr = cpu.get_register_16(Register16::HL);
+        preload_hl(&mut memory, &cpu, 0b1110_0101);
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_101_000 | R8Operand::to_byte(R8Operand::HLInd));
+        assert_mem!(memory, hl_addr, 0b1111_0010);
+        assert!(carry_flag(&cpu), "SRA [HL] should set the carry flag");
     }
-
+    
     #[test]
-    fn test_cpu_cb_sla() {
+    fn test_cb_sla_operations() {
         let mut cpu = Cpu::new();
         let mut memory = Memory::new();
-
+        let mut offset: u16 = 0;
+    
         cpu.set_register(Register::E, 0b1111_0000);
-
-        memory.write_to_8b(0, 0xCB); // 0xCB
-        memory.write_to_8b(1, 0b00_100_000 | R8Operand::to_byte(R8Operand::E)); // srl E
-        
-        let original_msb: bool = (cpu.get_register(Register::E) & 0x80) != 0;
-
-        cpu.clock(&mut memory);
-
-        let carry = bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS);
-        assert_eq!(cpu.get_register(Register::E), 0b1110_0000);
-        assert_eq!(original_msb, carry);
-
-        memory.write_to_8b(2, 0xCB); // 0xCB
-        memory.write_to_8b(3, 0b00_100_000 | R8Operand::to_byte(R8Operand::HLInd)); // srl [hl]
-
-        cpu.clock(&mut memory);
-        let carry = bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS);
-        let value_hl_ind = memory.read_from_8b(cpu.get_register_16(Register16::HL));
-
-        assert_eq!(value_hl_ind, 0b1001_0110);
-        assert_eq!(carry, true);
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_100_000 | R8Operand::to_byte(R8Operand::E));
+        let original_msb = (0b1111_0000 & 0x80) != 0;
+        assert_reg!(cpu, Register::E, 0b1110_0000);
+        assert_eq!(carry_flag(&cpu), original_msb, "SLA E carry flag mismatch");
+    
+        let hl_addr = cpu.get_register_16(Register16::HL);
+        preload_hl(&mut memory, &cpu, 0b0010_1011);
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_100_000 | R8Operand::to_byte(R8Operand::HLInd));
+        assert_mem!(memory, hl_addr, 0b0101_0110);
+        assert!(!carry_flag(&cpu), "SLA [HL] should not set the carry flag");
     }
 
 }
