@@ -1672,7 +1672,7 @@ mod tests {
         cpu.set_register(Register::A, 0b0000_1111);
 
         memory.write_to_8b(0, 0xCB); // 0xCB
-        memory.write_to_8b(1, 0b00_000_000 | R8Operand::to_byte(R8Operand::A)); // srl e
+        memory.write_to_8b(1, 0b00_000_000 | R8Operand::to_byte(R8Operand::A)); // srl a
 
         cpu.clock(&mut memory);
 
@@ -1691,4 +1691,64 @@ mod tests {
         assert_eq!(carry, true);
 
     }
+
+    #[test]
+    fn test_cpu_cb_sra() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.set_register(Register::D, 0b1111_0000);
+
+        memory.write_to_8b(0, 0xCB); // 0xCB
+        memory.write_to_8b(1, 0b00_101_000 | R8Operand::to_byte(R8Operand::D)); // srl D
+        
+        let original_lsb: bool = (cpu.get_register(Register::D) & 1) != 0;
+
+        cpu.clock(&mut memory);
+
+        let carry = bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS);
+        assert_eq!(cpu.get_register(Register::D), 0b1111_1000);
+        assert_eq!(original_lsb, carry);
+
+        memory.write_to_8b(2, 0xCB); // 0xCB
+        memory.write_to_8b(3, 0b00_101_000 | R8Operand::to_byte(R8Operand::HLInd)); // srl [hl]
+
+        cpu.clock(&mut memory);
+        let carry = bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS);
+        let value_hl_ind = memory.read_from_8b(cpu.get_register_16(Register16::HL));
+
+        assert_eq!(value_hl_ind, 0b11100101);
+        assert_eq!(carry, true);
+
+    }
+
+    #[test]
+    fn test_cpu_cb_sla() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.set_register(Register::E, 0b1111_0000);
+
+        memory.write_to_8b(0, 0xCB); // 0xCB
+        memory.write_to_8b(1, 0b00_100_000 | R8Operand::to_byte(R8Operand::E)); // srl E
+        
+        let original_msb: bool = (cpu.get_register(Register::E) & 0x80) != 0;
+
+        cpu.clock(&mut memory);
+
+        let carry = bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS);
+        assert_eq!(cpu.get_register(Register::E), 0b1110_0000);
+        assert_eq!(original_msb, carry);
+
+        memory.write_to_8b(2, 0xCB); // 0xCB
+        memory.write_to_8b(3, 0b00_100_000 | R8Operand::to_byte(R8Operand::HLInd)); // srl [hl]
+
+        cpu.clock(&mut memory);
+        let carry = bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS);
+        let value_hl_ind = memory.read_from_8b(cpu.get_register_16(Register16::HL));
+
+        assert_eq!(value_hl_ind, 0b1001_0110);
+        assert_eq!(carry, true);
+    }
+
 }
