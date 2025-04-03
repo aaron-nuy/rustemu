@@ -1475,8 +1475,6 @@ impl Cpu {
 mod tests {
     use crate::console::cpu::cpu::*;
     use crate::console::cpu::instruction::R8Operand;
-    use crate::console::cpu::register::*;
-    use crate::console::memory::*;
     use crate::console::utils::bit_utils;
 
     #[test]
@@ -1563,7 +1561,7 @@ mod tests {
         
         let bit_value = !bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS);
 
-        assert_eq!(bit_value, false, "C is {}", cpu.get_register(Register::C));
+        assert_eq!(bit_value, false);
 
         memory.write_to_8b(2, 0xCB); // 0xCB
         memory.write_to_8b(3, 0b01_101_000 | R8Operand::to_byte(R8Operand::C)); // bit 5, c
@@ -1572,16 +1570,125 @@ mod tests {
         
         let bit_value = !bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS);
 
-        assert_eq!(bit_value, true, "C is {}", cpu.get_register(Register::C));
+        assert_eq!(bit_value, true);
 
         memory.write_to_8b(4, 0xCB); // 0xCB
         memory.write_to_8b(5, 0b01_011_000 | R8Operand::to_byte(R8Operand::HLInd)); // bit 3, [hl]
 
         cpu.clock(&mut memory);
         
-        let value_hl_ind = memory.read_from_8b(cpu.get_register_16(Register16::HL));
         let bit_value = !bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS);
 
-        assert_eq!(bit_value, true, "HLInd is {}", value_hl_ind);
+        assert_eq!(bit_value, true);
+    }
+
+    #[test]
+    fn test_cpu_cb_swap() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.set_register(Register::E, 0b1111_0000);
+
+        memory.write_to_8b(0, 0xCB); // 0xCB
+        memory.write_to_8b(1, 0b00_110_000 | R8Operand::to_byte(R8Operand::E)); // swap e
+        
+        cpu.clock(&mut memory);
+
+        assert_eq!(cpu.get_register(Register::E), 0b0000_1111);
+
+        memory.write_to_8b(2, 0xCB); // 0xCB
+        memory.write_to_8b(3, 0b00_110_000 | R8Operand::to_byte(R8Operand::HLInd)); // swap [hl]
+        
+        cpu.clock(&mut memory);
+
+        let value_hl_ind = memory.read_from_8b(cpu.get_register_16(Register16::HL));
+
+        assert_eq!(value_hl_ind, 0xBC);
+    }
+
+    #[test]
+    fn test_cpu_cb_srl() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.set_register(Register::B, 0b1111_0000);
+
+        memory.write_to_8b(0, 0xCB); // 0xCB
+        memory.write_to_8b(1, 0b00_111_000 | R8Operand::to_byte(R8Operand::B)); // srl B
+        
+        let original_lsb: bool = (cpu.get_register(Register::B) & 1) != 0;
+
+        cpu.clock(&mut memory);
+
+        let carry = bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS);
+        assert_eq!(cpu.get_register(Register::B), 0b0111_1000);
+        assert_eq!(original_lsb, carry);
+
+        memory.write_to_8b(2, 0xCB); // 0xCB
+        memory.write_to_8b(3, 0b00_111_000 | R8Operand::to_byte(R8Operand::HLInd)); // srl [hl]
+
+        cpu.clock(&mut memory);
+        let carry = bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS);
+        let value_hl_ind = memory.read_from_8b(cpu.get_register_16(Register16::HL));
+
+        assert_eq!(value_hl_ind, 0b01100101);
+        assert_eq!(carry, true);
+
+    }
+
+    #[test]
+    fn test_cpu_cb_rrc() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.set_register(Register::E, 0b1111_0000);
+
+        memory.write_to_8b(0, 0xCB); // 0xCB
+        memory.write_to_8b(1, 0b00_001_000 | R8Operand::to_byte(R8Operand::E)); // srl e
+
+        cpu.clock(&mut memory);
+
+        let carry = bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS);
+        assert_eq!(cpu.get_register(Register::E), 0b0111_1000);
+        assert_eq!(false, carry);
+
+        memory.write_to_8b(2, 0xCB); // 0xCB
+        memory.write_to_8b(3, 0b00_001_000 | R8Operand::to_byte(R8Operand::HLInd)); // srl [hl]
+
+        cpu.clock(&mut memory);
+        let carry = bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS);
+        let value_hl_ind = memory.read_from_8b(cpu.get_register_16(Register16::HL));
+
+        assert_eq!(value_hl_ind, 0b11100101);
+        assert_eq!(carry, true);
+
+    }
+
+    #[test]
+    fn test_cpu_cb_rlc() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.set_register(Register::A, 0b0000_1111);
+
+        memory.write_to_8b(0, 0xCB); // 0xCB
+        memory.write_to_8b(1, 0b00_000_000 | R8Operand::to_byte(R8Operand::A)); // srl e
+
+        cpu.clock(&mut memory);
+
+        let carry = bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS);
+        assert_eq!(cpu.get_register(Register::A), 0b0001_1110);
+        assert_eq!(false, carry);
+
+        memory.write_to_8b(2, 0xCB); // 0xCB
+        memory.write_to_8b(3, 0b00_000_000 | R8Operand::to_byte(R8Operand::HLInd)); // srl [hl]
+
+        cpu.clock(&mut memory);
+        let carry = bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS);
+        let value_hl_ind = memory.read_from_8b(cpu.get_register_16(Register16::HL));
+
+        assert_eq!(value_hl_ind, 0b10010111);
+        assert_eq!(carry, true);
+
     }
 }

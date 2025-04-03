@@ -22,6 +22,10 @@ impl Memory {
         u16::from_le_bytes(bytes)
     }
 
+    pub fn load_rom(&mut self, data: Vec<u8>) {
+        self.ram[..data.len()].copy_from_slice(&data);
+    }
+
     pub fn new() -> Self {
         Self {
             ram: Box::new([0; crate::console::constants::MEMORY_SIZE])
