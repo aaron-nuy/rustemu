@@ -1693,4 +1693,41 @@ mod tests {
         assert!(!carry_flag(&cpu), "SLA [HL] should not set the carry flag");
     }
 
+    #[test]
+    fn test_cb_rr_operations() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+        let mut offset: u16 = 0;
+        
+        cpu.set_register(Register::E, 0b1111_0000);
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_011_000 | R8Operand::to_byte(R8Operand::E));
+        assert_reg!(cpu, Register::E, 0b0111_1000);
+        assert_eq!(carry_flag(&cpu), false, "RR on E should not set the carry flag");
+    
+        let hl_addr = cpu.get_register_16(Register16::HL);
+        preload_hl(&mut memory, &cpu, 0b1110_0101);
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_011_000 | R8Operand::to_byte(R8Operand::HLInd));
+        assert_mem!(memory, hl_addr, 0b0111_0010);
+        assert!(carry_flag(&cpu), "RR [HL] should set the carry flag");
+    }
+    
+    #[test]
+    fn test_cb_rl_operations() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+        let mut offset: u16 = 0;
+    
+        cpu.set_register(Register::A, 0b0000_1111);
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_010_000 | R8Operand::to_byte(R8Operand::A));
+        assert_reg!(cpu, Register::A, 0b0001_1110);
+        assert_eq!(carry_flag(&cpu), false, "RL on A should not set the carry flag");
+    
+        let hl_addr = cpu.get_register_16(Register16::HL);
+        preload_hl(&mut memory, &cpu, 0b0010_1111);
+        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_010_000 | R8Operand::to_byte(R8Operand::HLInd));
+        assert_mem!(memory, hl_addr, 0b0101_1110);
+        assert_eq!(carry_flag(&cpu), false, "RL [HL] should not set the carry flag");
+    }
+    
+
 }
