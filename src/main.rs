@@ -1,4 +1,4 @@
-use console::gameboy::{self, Gameboy};
+use console::gameboy::{Gameboy};
 
 mod console;
 

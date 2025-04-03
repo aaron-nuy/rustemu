@@ -1,6 +1,6 @@
 use crate::console::utils::bit_utils;
 use crate::console::cpu::instruction::*;
-use crate::console::memory::{self, *};
+use crate::console::memory::*;
 
 #[derive(Default)]
 pub struct Cpu {
@@ -64,7 +64,6 @@ impl Cpu {
             Register::L => {
                 self.l = value;
             }
-            _ => panic!("Unknown register"),
         }
     }
 
@@ -80,7 +79,6 @@ impl Cpu {
             Register16::PC => {
                 self.pc = value;
             }
-            _ => panic!("Unknown register"),
         }
     }
 
@@ -93,8 +91,7 @@ impl Cpu {
             Register::E => self.e,
             Register::F => self.f & 0xf0,
             Register::H => self.h,
-            Register::L => self.l,
-            _ => panic!("Unknown register"),
+            Register::L => self.l
         }
     }
 
@@ -105,8 +102,7 @@ impl Cpu {
             Register16::DE => self.get_de(),
             Register16::HL => self.get_hl(),
             Register16::SP => self.sp,
-            Register16::PC => self.pc,
-            _ => panic!("Unknown register"),
+            Register16::PC => self.pc
         }
     }
 
@@ -170,8 +166,7 @@ impl Cpu {
             FlowCondition::Zero => bit_utils::get_bit(self.f, Cpu::F_ZERO_FLAG_POS),
             FlowCondition::NotCarry => !bit_utils::get_bit(self.f, Cpu::F_CARRY_FLAG_POS),
             FlowCondition::Carry => bit_utils::get_bit(self.f, Cpu::F_CARRY_FLAG_POS),
-            FlowCondition::Always => true,
-            _ => panic!("Unknown condition"),
+            FlowCondition::Always => true
         }
     }
 
@@ -1147,7 +1142,7 @@ impl Cpu {
     }
 
     fn decode(&self, memory: &mut Memory) -> (Instruction, u16) {
-        let first_byte = memory.read_from_16b(self.pc);
+        let first_byte = memory.read_from_8b(self.pc);
 
         match first_byte {
             0xcb => self.decode_cb_instruction(memory),
@@ -1470,8 +1465,7 @@ impl Cpu {
             Instruction::HALT() => self.halt(),
             Instruction::STOP() => self.stop(),
             Instruction::DI() => self.di(),
-            Instruction::EI() => self.ei(),
-            _ => panic!("Unknown instruction"),
+            Instruction::EI() => self.ei()
         }
     }
 }

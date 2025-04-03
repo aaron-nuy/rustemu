@@ -24,6 +24,19 @@ impl R8Operand {
             _ => panic!("Unknown R8Operand {}", byte)
         }
     }
+
+    pub fn to_byte(operand: R8Operand) -> u8 {
+        match operand {
+            R8Operand::B => 0,
+            R8Operand::C => 1,
+            R8Operand::D => 2,
+            R8Operand::E => 3,
+            R8Operand::H => 4,
+            R8Operand::L => 5,
+            R8Operand::HLInd => 6,
+            R8Operand::A => 7,
+        }
+    }
 }
 
 pub enum R16Operand {
@@ -41,6 +54,15 @@ impl R16Operand {
             2 => R16Operand::HL,
             3 => R16Operand::SP,
             _ => panic!("Unknown R16Operand {}", byte)
+        }
+    }
+
+    pub fn to_byte(operand: R16Operand) -> u8 {
+        match operand {
+            R16Operand::BC => 0,
+            R16Operand::DE => 1,
+            R16Operand::HL => 2,
+            R16Operand::SP => 3,
         }
     }
 }
@@ -62,6 +84,15 @@ impl R16StkOperand {
             _ => panic!("Unknown R16StkOperand {}", byte)
         }
     }
+
+    pub fn to_byte(operand: R16StkOperand) -> u8 {
+        match operand {
+            R16StkOperand::BC => 0,
+            R16StkOperand::DE => 1,
+            R16StkOperand::HL => 2,
+            R16StkOperand::AF => 3,
+        }
+    }
 }
 
 pub enum R16MemOperand {
@@ -79,6 +110,15 @@ impl R16MemOperand {
             2 => R16MemOperand::HLI,
             3 => R16MemOperand::HLD,
             _ => panic!("Unknown R16MemOperand {}", byte)
+        }
+    }
+
+    pub fn to_byte(operand: R16MemOperand) -> u8 {
+        match operand {
+            R16MemOperand::BC => 0,
+            R16MemOperand::DE => 1,
+            R16MemOperand::HLI => 2,
+            R16MemOperand::HLD => 3,
         }
     }
 }
@@ -99,6 +139,16 @@ impl FlowCondition {
             2 => FlowCondition::NotCarry,
             3 => FlowCondition::Carry,
             _ => FlowCondition::Always,
+        }
+    }
+
+    pub fn to_byte(operand: FlowCondition) -> u8 {
+        match operand {
+            FlowCondition::NotZero => 0,
+            FlowCondition::Zero => 1,
+            FlowCondition::NotCarry => 2,
+            FlowCondition::Carry => 3,
+            FlowCondition::Always => 4,
         }
     }
 }
