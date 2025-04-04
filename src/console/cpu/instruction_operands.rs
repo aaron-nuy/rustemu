@@ -126,7 +126,7 @@ impl R16MemOperand {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum FlowCondition {
     NotZero,
     Zero,
@@ -183,10 +183,10 @@ impl Block {
 
         let block_index = (opcode & 0b11000000) >> 6;
         match block_index {
-            0b00 => Block::ZERO,
-            0b01 => Block::ONE,
-            0b10 => Block::TWO,
-            0b11 => Block::THREE,
+            0 => Block::ZERO,
+            1 => Block::ONE,
+            2 => Block::TWO,
+            3 => Block::THREE,
             _ => panic!("Unknown block index {}", block_index)
         }
     }

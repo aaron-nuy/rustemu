@@ -1,7 +1,7 @@
+use crate::console::cpu::decoder;
 use crate::console::cpu::instruction::*;
 use crate::console::memory::*;
 use crate::console::utils::bit_utils;
-use crate::console::cpu::decoder;
 
 #[derive(Default)]
 pub struct Cpu {
@@ -21,12 +21,22 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    const F_ZERO_FLAG_POS: u8 = 7;
-    const F_SUB_FLAG_POS: u8 = 6;
-    const F_HALF_CARRY_FLAG_POS: u8 = 5;
-    const F_CARRY_FLAG_POS: u8 = 4;
-
     pub fn new() -> Self {
+        // Cpu {
+        //     a: 0x01,
+        //     b: 0x00,
+        //     c: 0x13,
+        //     d: 0x00,
+        //     e: 0xD8,
+        //     h: 0x01,
+        //     l: 0x4D,
+        //     f: 0xB0,
+        //     pc: 0x100,
+        //     sp: 0xFFFE,
+        //     clock: 0,
+        //     interrupts_enabled: true,
+        //     halted: false,
+        // }
         Self::default()
     }
 
@@ -154,19 +164,32 @@ impl Cpu {
         self.e = (value & 0x00ff) as u8;
     }
 
-    fn set_f_flags(&mut self, carry: bool, half_carry: bool, sub: bool, zero: bool) {
-        self.set_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS, carry);
-        self.set_register_bit(Register::F, Cpu::F_ZERO_FLAG_POS, zero);
-        self.set_register_bit(Register::F, Cpu::F_SUB_FLAG_POS, sub);
-        self.set_register_bit(Register::F, Cpu::F_HALF_CARRY_FLAG_POS, half_carry);
+    fn set_flag(&mut self, flag: Flag, on: bool) {
+        self.f = if on {
+            self.f | (flag as u8)
+        }
+        else {
+            self.f & !(flag as u8)
+        }
+    }
+
+    fn get_flag(&self, flag: Flag) -> bool {
+        (self.f & (flag as u8)) != 0
+    }
+
+    fn set_flags(&mut self, carry: bool, half_carry: bool, sub: bool, zero: bool) {
+        self.set_flag(Flag::Carry, carry);
+        self.set_flag(Flag::Zero, zero);
+        self.set_flag(Flag::Sub, sub);
+        self.set_flag(Flag::HalfCarry, half_carry);
     }
 
     fn evaluate_flow_condition(&self, condition: FlowCondition) -> bool {
         match condition {
-            FlowCondition::NotZero => !bit_utils::get_bit(self.f, Cpu::F_ZERO_FLAG_POS),
-            FlowCondition::Zero => bit_utils::get_bit(self.f, Cpu::F_ZERO_FLAG_POS),
-            FlowCondition::NotCarry => !bit_utils::get_bit(self.f, Cpu::F_CARRY_FLAG_POS),
-            FlowCondition::Carry => bit_utils::get_bit(self.f, Cpu::F_CARRY_FLAG_POS),
+            FlowCondition::NotZero => !self.get_flag(Flag::Zero),
+            FlowCondition::Zero => self.get_flag(Flag::Zero),
+            FlowCondition::NotCarry => !self.get_flag(Flag::Carry),
+            FlowCondition::Carry => self.get_flag(Flag::Carry),
         }
     }
 
@@ -336,7 +359,7 @@ impl Cpu {
         let half_carry = (sp & 0x000f).wrapping_add(((imm as u8) & 0x0f) as u16) > 0x000f;
         let did_overflow = (sp & 0x00ff).wrapping_add(imm as u8 as u16) > 0x00ff;
 
-        self.set_f_flags(did_overflow, half_carry, false, false);
+        self.set_flags(did_overflow, half_carry, false, false);
         3
     }
 
@@ -344,13 +367,13 @@ impl Cpu {
         let (new_value, did_overflow) = self.a.overflowing_add(value);
         let half_carry = (self.a & 0x0f) + (value & 0x0f) > 0x0f;
 
-        self.set_f_flags(did_overflow, half_carry, false, new_value == 0);
+        self.set_flags(did_overflow, half_carry, false, new_value == 0);
 
         self.a = new_value;
     }
 
     fn _adc(&mut self, value: u8) {
-        let carry_flag = if bit_utils::get_bit(self.f, Cpu::F_CARRY_FLAG_POS) {
+        let carry_flag = if self.get_flag(Flag::Carry) {
             1
         } else {
             0
@@ -362,7 +385,7 @@ impl Cpu {
         let half_carry = (self.a & 0x0f) + (value & 0x0f) + carry_flag > 0x0f;
         let did_overflow = did_overflow1 || did_overflow2;
 
-        self.set_f_flags(did_overflow, half_carry, false, second_add == 0);
+        self.set_flags(did_overflow, half_carry, false, second_add == 0);
 
         self.a = second_add;
     }
@@ -405,13 +428,13 @@ impl Cpu {
         let (new_register_value, did_borrow) = self.a.overflowing_sub(value);
         let half_carry = self.a & 0x0f < value & 0x0f;
 
-        self.set_f_flags(did_borrow, half_carry, true, new_register_value == 0);
+        self.set_flags(did_borrow, half_carry, true, new_register_value == 0);
 
         self.a = new_register_value;
     }
 
     fn _sbc(&mut self, value: u8) {
-        let carry_flag = if bit_utils::get_bit(self.f, Cpu::F_CARRY_FLAG_POS) {
+        let carry_flag = if self.get_flag(Flag::Carry) {
             1
         } else {
             0
@@ -423,7 +446,7 @@ impl Cpu {
         let half_carry = self.a & 0x0f < (value & 0x0f) + carry_flag;
         let did_borrow = did_borrow1 || did_borrow2;
 
-        self.set_f_flags(did_borrow, half_carry, true, second_sub == 0);
+        self.set_flags(did_borrow, half_carry, true, second_sub == 0);
 
         self.a = second_sub;
     }
@@ -466,7 +489,7 @@ impl Cpu {
         let (new_register_value, did_borrow) = self.a.overflowing_sub(value);
         let half_carry = self.a & 0x0f < value & 0x0f;
 
-        self.set_f_flags(did_borrow, half_carry, true, new_register_value == 0);
+        self.set_flags(did_borrow, half_carry, true, new_register_value == 0);
     }
 
     fn cp(&mut self, register: Register) -> u64 {
@@ -491,9 +514,9 @@ impl Cpu {
 
         let (new_value, _) = value.overflowing_add(1);
         let half_carry = (value & 0x0f) + 0b1 > 0x0f;
-        let current_carry = self.get_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS);
+        let current_carry = self.get_flag(Flag::Carry);
 
-        self.set_f_flags(current_carry, half_carry, false, new_value == 0);
+        self.set_flags(current_carry, half_carry, false, new_value == 0);
 
         self.set_register(register, new_value);
         1
@@ -504,9 +527,9 @@ impl Cpu {
 
         let (new_value, _) = value.overflowing_add(1);
         let half_carry = (value & 0x0f) + 0b1 > 0x0f;
-        let current_carry = self.get_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS);
+        let current_carry = self.get_flag(Flag::Carry);
 
-        self.set_f_flags(current_carry, half_carry, false, new_value == 0);
+        self.set_flags(current_carry, half_carry, false, new_value == 0);
 
         memory.write_to_8b(self.get_hl(), new_value);
         3
@@ -517,9 +540,9 @@ impl Cpu {
 
         let (new_value, _) = value.overflowing_sub(1);
         let half_carry = (value & 0x0f) == 0;
-        let current_carry = self.get_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS);
+        let current_carry = self.get_flag(Flag::Carry);
 
-        self.set_f_flags(current_carry, half_carry, true, new_value == 0);
+        self.set_flags(current_carry, half_carry, true, new_value == 0);
 
         self.set_register(register, new_value);
         1
@@ -530,9 +553,9 @@ impl Cpu {
 
         let (new_value, _) = value.overflowing_sub(1);
         let half_carry = (value & 0x0f) == 0;
-        let current_carry = self.get_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS);
+        let current_carry = self.get_flag(Flag::Carry);
 
-        self.set_f_flags(current_carry, half_carry, true, new_value == 0);
+        self.set_flags(current_carry, half_carry, true, new_value == 0);
 
         memory.write_to_8b(self.get_hl(), new_value);
         3
@@ -541,7 +564,7 @@ impl Cpu {
     fn _and(&mut self, value: u8) {
         let new_value = self.a & value;
 
-        self.set_f_flags(false, true, false, new_value == 0);
+        self.set_flags(false, true, false, new_value == 0);
 
         self.a = new_value;
     }
@@ -566,7 +589,7 @@ impl Cpu {
     fn _or(&mut self, value: u8) {
         let new_value = self.a | value;
 
-        self.set_f_flags(false, false, false, new_value == 0);
+        self.set_flags(false, false, false, new_value == 0);
 
         self.a = new_value;
     }
@@ -591,7 +614,7 @@ impl Cpu {
     fn _xor(&mut self, value: u8) {
         let new_value = self.a ^ value;
 
-        self.set_f_flags(false, false, false, new_value == 0);
+        self.set_flags(false, false, false, new_value == 0);
 
         self.a = new_value;
     }
@@ -614,23 +637,23 @@ impl Cpu {
     }
 
     fn ccf(&mut self) -> u64 {
-        let current_carry = self.get_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS);
-        let current_zero = self.get_register_bit(Register::F, Cpu::F_ZERO_FLAG_POS);
+        let current_carry = self.get_flag(Flag::Carry);
+        let current_zero = self.get_flag(Flag::Zero);
 
-        self.set_f_flags(!current_carry, false, false, current_zero);
+        self.set_flags(!current_carry, false, false, current_zero);
         1
     }
 
     fn scf(&mut self) -> u64 {
-        let current_zero = self.get_register_bit(Register::F, Cpu::F_ZERO_FLAG_POS);
-        self.set_f_flags(true, false, false, current_zero);
+        let current_zero = self.get_flag(Flag::Zero);
+        self.set_flags(true, false, false, current_zero);
         1
     }
 
     fn daa(&mut self) -> u64 {
-        let current_sub = self.get_register_bit(Register::F, Cpu::F_SUB_FLAG_POS);
-        let current_half_carry = self.get_register_bit(Register::F, Cpu::F_HALF_CARRY_FLAG_POS);
-        let mut carry = self.get_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS);
+        let current_sub = self.get_flag(Flag::Sub);
+        let current_half_carry = self.get_flag(Flag::HalfCarry);
+        let mut carry = self.get_flag(Flag::Carry);
 
         let mut adjust = 0;
         let mut new_value: u8 = 0;
@@ -653,17 +676,17 @@ impl Cpu {
             new_value = self.a.wrapping_sub(adjust);
         }
 
-        self.set_f_flags(carry, false, current_sub, new_value == 0);
+        self.set_flags(carry, false, current_sub, new_value == 0);
 
         self.a = new_value;
         1
     }
 
     fn cpl(&mut self) -> u64 {
-        let current_carry = self.get_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS);
-        let current_zero = self.get_register_bit(Register::F, Cpu::F_ZERO_FLAG_POS);
+        let current_carry = self.get_flag(Flag::Carry);
+        let current_zero = self.get_flag(Flag::Zero);
 
-        self.set_f_flags(current_carry, true, true, current_zero);
+        self.set_flags(current_carry, true, true, current_zero);
 
         self.a = !self.a;
         1
@@ -686,10 +709,10 @@ impl Cpu {
         let hl = self.get_hl();
 
         let (new_value, did_overflow) = hl.overflowing_add(register_value);
-        let current_zero = self.get_register_bit(Register::F, Cpu::F_ZERO_FLAG_POS);
+        let current_zero = self.get_flag(Flag::Zero);
         let half_carry = (hl & 0x0fff) + (register_value & 0x0fff) > 0x0fff;
 
-        self.set_f_flags(did_overflow, half_carry, false, current_zero);
+        self.set_flags(did_overflow, half_carry, false, current_zero);
 
         self.set_hl(new_value);
         2
@@ -703,7 +726,7 @@ impl Cpu {
         let half_carry = (sp & 0x000f).wrapping_add(((imm as u8) & 0x0f) as u16) > 0x000f;
         let did_overflow = (sp & 0x00ff).wrapping_add(imm as u8 as u16) > 0x00ff;
 
-        self.set_f_flags(did_overflow, half_carry, false, false);
+        self.set_flags(did_overflow, half_carry, false, false);
 
         self.sp = new_value;
         4
@@ -711,7 +734,7 @@ impl Cpu {
 
     fn _rotate(&mut self, value: u8, circular: bool, right: bool, accumulator: bool) -> u8 {
         let carry_bit_pos: u8 = if right { 0x01 } else { 0x80 };
-        let old_carry = self.get_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS);
+        let old_carry = self.get_flag(Flag::Carry);
         let carry = (value & carry_bit_pos) != 0;
 
         let new_value = {
@@ -728,7 +751,7 @@ impl Cpu {
 
         let zero = if accumulator { false } else { new_value == 0 };
 
-        self.set_f_flags(carry, false, false, zero);
+        self.set_flags(carry, false, false, zero);
 
         new_value
     }
@@ -836,7 +859,7 @@ impl Cpu {
             value << 1
         };
 
-        self.set_f_flags(carry, false, false, new_value == 0);
+        self.set_flags(carry, false, false, new_value == 0);
 
         new_value
     }
@@ -884,7 +907,7 @@ impl Cpu {
         let carry = if right { lsb != 0 } else { msb != 0 };
         let new_value = if right { value >> 1 } else { value << 1 };
 
-        self.set_f_flags(carry, false, false, new_value == 0);
+        self.set_flags(carry, false, false, new_value == 0);
 
         new_value
     }
@@ -910,7 +933,7 @@ impl Cpu {
     fn _swap(&mut self, value: u8) -> u8 {
         let new_value = value.rotate_left(4);
 
-        self.set_f_flags(false, false, false, new_value == 0);
+        self.set_flags(false, false, false, new_value == 0);
 
         new_value
     }
@@ -934,11 +957,11 @@ impl Cpu {
     }
 
     fn _bit(&mut self, bit_position: u8, value: u8) {
-        let old_carry = self.get_register_bit(Register::F, Cpu::F_CARRY_FLAG_POS);
+        let old_carry = self.get_flag(Flag::Carry);
 
         let bit_is_set = value & (1 << bit_position);
 
-        self.set_f_flags(old_carry, true, false, bit_is_set == 0);
+        self.set_flags(old_carry, true, false, bit_is_set == 0);
     }
 
     fn bitr(&mut self, bit_position: u8, register: Register) -> u64 {
@@ -1217,7 +1240,6 @@ impl Cpu {
 mod tests {
     use crate::console::cpu::cpu::*;
     use crate::console::cpu::instruction::R8Operand;
-    use crate::console::utils::bit_utils;
 
     fn execute_cb_instruction(cpu: &mut Cpu, memory: &mut Memory, offset: &mut u16, subopcode: u8) {
         memory.write_to_8b(*offset, 0xcb);
@@ -1229,10 +1251,6 @@ mod tests {
     fn preload_hl(memory: &mut Memory, cpu: &Cpu, value: u8) {
         let hl_addr = cpu.get_register_16(Register16::HL);
         memory.write_to_8b(hl_addr, value);
-    }
-
-    fn carry_flag(cpu: &Cpu) -> bool {
-        bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS)
     }
 
     macro_rules! assert_reg {
@@ -1352,7 +1370,7 @@ mod tests {
             0b01_001_000 | R8Operand::to_byte(R8Operand::C),
         );
         assert!(
-            bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS),
+            cpu.get_flag(Flag::Zero),
             "BIT 1 in C should set the zero flag"
         );
 
@@ -1363,7 +1381,7 @@ mod tests {
             0b01_101_000 | R8Operand::to_byte(R8Operand::C),
         );
         assert!(
-            !bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS),
+            !cpu.get_flag(Flag::Zero),
             "BIT 5 in C should reset the zero flag"
         );
 
@@ -1375,7 +1393,7 @@ mod tests {
             0b01_011_000 | R8Operand::to_byte(R8Operand::HLInd),
         );
         assert!(
-            !bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS),
+            !cpu.get_flag(Flag::Zero),
             "BIT 3 in [HL] should reset the zero flag"
         );
     }
@@ -1422,7 +1440,7 @@ mod tests {
         let original_lsb = (0b1111_0000 & 1) != 0;
         assert_reg!(cpu, Register::B, 0b0111_1000);
         assert_eq!(
-            carry_flag(&cpu),
+            cpu.get_flag(Flag::Carry),
             original_lsb,
             "Carry flag should match original LSB"
         );
@@ -1436,7 +1454,7 @@ mod tests {
             0b00_111_000 | R8Operand::to_byte(R8Operand::HLInd),
         );
         assert_mem!(memory, hl_addr, 0b0110_0101);
-        assert!(carry_flag(&cpu), "SRL [HL] should set the carry flag");
+        assert!(cpu.get_flag(Flag::Carry), "SRL [HL] should set the carry flag");
     }
 
     #[test]
@@ -1453,7 +1471,7 @@ mod tests {
             0b00_001_000 | R8Operand::to_byte(R8Operand::E),
         );
         assert_reg!(cpu, Register::E, 0b0111_1000);
-        assert!(!carry_flag(&cpu), "RRC on E should not set the carry flag");
+        assert!(!cpu.get_flag(Flag::Carry), "RRC on E should not set the carry flag");
 
         // Test RRC on memory pointed by HL.
         let hl_addr = cpu.get_register_16(Register16::HL);
@@ -1465,7 +1483,7 @@ mod tests {
             0b00_001_000 | R8Operand::to_byte(R8Operand::HLInd),
         );
         assert_mem!(memory, hl_addr, 0b1111_0010);
-        assert!(carry_flag(&cpu), "RRC [HL] should set the carry flag");
+        assert!(cpu.get_flag(Flag::Carry), "RRC [HL] should set the carry flag");
     }
 
     #[test]
@@ -1482,7 +1500,7 @@ mod tests {
             0b00_000_000 | R8Operand::to_byte(R8Operand::A),
         );
         assert_reg!(cpu, Register::A, 0b0001_1110);
-        assert!(!carry_flag(&cpu), "RLC on A should not set the carry flag");
+        assert!(!cpu.get_flag(Flag::Carry), "RLC on A should not set the carry flag");
 
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut memory, &cpu, 0b0010_1111);
@@ -1493,7 +1511,7 @@ mod tests {
             0b00_000_000 | R8Operand::to_byte(R8Operand::HLInd),
         );
         assert_mem!(memory, hl_addr, 0b0101_1110);
-        assert!(!carry_flag(&cpu), "RLC [HL] should not set the carry flag");
+        assert!(!cpu.get_flag(Flag::Carry), "RLC [HL] should not set the carry flag");
     }
 
     #[test]
@@ -1511,7 +1529,7 @@ mod tests {
         );
         let original_lsb = (0b1111_0000 & 1) != 0;
         assert_reg!(cpu, Register::D, 0b1111_1000);
-        assert_eq!(carry_flag(&cpu), original_lsb, "SRA D carry flag mismatch");
+        assert_eq!(cpu.get_flag(Flag::Carry), original_lsb, "SRA D carry flag mismatch");
 
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut memory, &cpu, 0b1110_0101);
@@ -1522,7 +1540,7 @@ mod tests {
             0b00_101_000 | R8Operand::to_byte(R8Operand::HLInd),
         );
         assert_mem!(memory, hl_addr, 0b1111_0010);
-        assert!(carry_flag(&cpu), "SRA [HL] should set the carry flag");
+        assert!(cpu.get_flag(Flag::Carry), "SRA [HL] should set the carry flag");
     }
 
     #[test]
@@ -1540,7 +1558,7 @@ mod tests {
         );
         let original_msb = (0b1111_0000 & 0x80) != 0;
         assert_reg!(cpu, Register::E, 0b1110_0000);
-        assert_eq!(carry_flag(&cpu), original_msb, "SLA E carry flag mismatch");
+        assert_eq!(cpu.get_flag(Flag::Carry), original_msb, "SLA E carry flag mismatch");
 
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut memory, &cpu, 0b0010_1011);
@@ -1551,7 +1569,7 @@ mod tests {
             0b00_100_000 | R8Operand::to_byte(R8Operand::HLInd),
         );
         assert_mem!(memory, hl_addr, 0b0101_0110);
-        assert!(!carry_flag(&cpu), "SLA [HL] should not set the carry flag");
+        assert!(!cpu.get_flag(Flag::Carry), "SLA [HL] should not set the carry flag");
     }
 
     #[test]
@@ -1569,7 +1587,7 @@ mod tests {
         );
         assert_reg!(cpu, Register::E, 0b0111_1000);
         assert_eq!(
-            carry_flag(&cpu),
+            cpu.get_flag(Flag::Carry),
             false,
             "RR on E should not set the carry flag"
         );
@@ -1583,7 +1601,7 @@ mod tests {
             0b00_011_000 | R8Operand::to_byte(R8Operand::HLInd),
         );
         assert_mem!(memory, hl_addr, 0b0111_0010);
-        assert!(carry_flag(&cpu), "RR [HL] should set the carry flag");
+        assert!(cpu.get_flag(Flag::Carry), "RR [HL] should set the carry flag");
     }
 
     #[test]
@@ -1601,7 +1619,7 @@ mod tests {
         );
         assert_reg!(cpu, Register::A, 0b0001_1110);
         assert_eq!(
-            carry_flag(&cpu),
+            cpu.get_flag(Flag::Carry),
             false,
             "RL on A should not set the carry flag"
         );
@@ -1616,7 +1634,7 @@ mod tests {
         );
         assert_mem!(memory, hl_addr, 0b0101_1110);
         assert_eq!(
-            carry_flag(&cpu),
+            cpu.get_flag(Flag::Carry),
             false,
             "RL [HL] should not set the carry flag"
         );

@@ -1,6 +1,13 @@
 use crate::console::cpu::instruction_operands::*;
 
-#[derive(Clone)]
+pub enum Flag {
+    Carry = 0x10,
+    Zero = 0x80,
+    Sub = 0x40,
+    HalfCarry = 0x20
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Register {
     A,
     B,
@@ -27,7 +34,7 @@ impl Register {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Register16 {
     AF,
     BC,

@@ -1,6 +1,7 @@
 pub use crate::console::cpu::register::*;
 pub use crate::console::cpu::instruction_operands::*;
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum Instruction {
     LD(Register, Register),
     LDImm(Register, u8),

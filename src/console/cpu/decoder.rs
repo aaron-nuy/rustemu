@@ -1,5 +1,14 @@
 use crate::console::cpu::instruction::*;
 
+pub fn decode(first_byte: u8, second_byte: u8, third_byte: u8) -> (Instruction, u16) {
+    if first_byte == 0xcb {
+        decode_cb(second_byte)
+    } else {
+        let imm16_operand = u16::from_le_bytes([second_byte, third_byte]);
+        decode_generic(first_byte, second_byte, imm16_operand)
+    }
+}
+
 fn get_operand_from_opcode(
     opcode: u8,
     operand_type: OperandType,
@@ -50,15 +59,6 @@ fn get_operand_from_opcode(
     };
 
     (opcode & mask) >> shift_right
-}
-
-pub fn decode(first_byte: u8, second_byte: u8, third_byte: u8) -> (Instruction, u16) {
-    if first_byte == 0xcb {
-        decode_cb(second_byte)
-    } else {
-        let imm16_operand = u16::from_le_bytes([second_byte, third_byte]);
-        decode_generic(first_byte, second_byte,imm16_operand)
-    }
 }
 
 fn decode_cb(opcode: u8) -> (Instruction, u16) {
@@ -539,5 +539,35 @@ fn decode_generic_block_3(opcode: u8, imm_8: u8, imm_16: u16) -> (Instruction, u
             "Unknown instruction Block Three Hex: {:#x} | Binary: {:#b}",
             opcode, opcode
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::console::cpu::decoder::*;
+
+    fn assert_decode(
+        expected_instr: Instruction,
+        expected_size: u16,
+        byte1: u8,
+        byte2: u8,
+        byte3: u8,
+    ) {
+        let (decoded_instr, decoded_size) = decode(byte1, byte2, byte3);
+        assert_eq!(
+            decoded_instr, expected_instr,
+            "Instruction mismatch for 0x{:02X} 0x{:02X} 0x{:02X}",
+            byte1, byte2, byte3
+        );
+        assert_eq!(
+            decoded_size, expected_size,
+            "Size mismatch for 0x{:02X} 0x{:02X} 0x{:02X}",
+            byte1, byte2, byte3
+        );
+    }
+
+    #[test]
+    fn test_decode_cb_bit() {
+        
     }
 }
