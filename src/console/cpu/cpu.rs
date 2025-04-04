@@ -176,7 +176,7 @@ impl Cpu {
         self.sp = addr;
     }
 
-    fn pop_from_stack_16b(&mut self, memory: &mut Memory) -> u16 {
+    fn pop_from_stack_16b(&mut self, memory: &Memory) -> u16 {
         let stack_value = memory.read_from_16b(self.sp);
         self.sp = self.sp.wrapping_add(2);
         stack_value
@@ -234,6 +234,14 @@ impl Cpu {
         (opcode & mask) >> shift_right
     }
 
+    fn extract_8b_operand(&self, memory: &Memory) -> u8 {
+        memory.read_from_8b(self.pc.wrapping_add(1))
+    }
+
+    fn extract_16b_operand(&self, memory: &Memory) -> u16 {
+        memory.read_from_16b(self.pc.wrapping_add(1))
+    }
+
     // Instructions
 
     fn ld(&mut self, register_to: Register, register_from: Register) -> u64 {
@@ -264,13 +272,13 @@ impl Cpu {
         3
     }
 
-    fn ld_from_bc_to_a_ind(&mut self, memory: &mut Memory) -> u64 {
+    fn ld_from_bc_ind_to_a(&mut self, memory: &mut Memory) -> u64 {
         let memory_value = memory.read_from_8b(self.get_bc());
         self.a = memory_value;
         2
     }
 
-    fn ld_from_de_to_a_ind(&mut self, memory: &mut Memory) -> u64 {
+    fn ld_from_de_ind_to_a(&mut self, memory: &mut Memory) -> u64 {
         let memory_value = memory.read_from_8b(self.get_de());
         self.a = memory_value;
         2
@@ -286,12 +294,12 @@ impl Cpu {
         2
     }
 
-    fn ld_from_imm_to_a_16(&mut self, imm: u16, memory: &mut Memory) -> u64 {
+    fn ld_from_imm_ind_to_a(&mut self, imm: u16, memory: &mut Memory) -> u64 {
         self.a = memory.read_from_8b(imm);
         4
     }
 
-    fn ld_to_imm_from_a_16(&mut self, imm: u16, memory: &mut Memory) -> u64 {
+    fn ld_to_imm_ind_from_a(&mut self, imm: u16, memory: &mut Memory) -> u64 {
         memory.write_to_8b(imm, self.a);
         4
     }
@@ -308,19 +316,19 @@ impl Cpu {
         2
     }
 
-    fn ld_from_imm_to_a_8(&mut self, imm: u8, memory: &mut Memory) -> u64 {
+    fn ld_from_imm_ind_to_a_8(&mut self, imm: u8, memory: &mut Memory) -> u64 {
         let addr: u16 = 0xff00 | (imm as u16);
         self.a = memory.read_from_8b(addr);
         3
     }
 
-    fn ld_to_imm_from_a_8(&mut self, imm: u8, memory: &mut Memory) -> u64 {
+    fn ld_to_imm_ind_from_a_8(&mut self, imm: u8, memory: &mut Memory) -> u64 {
         let addr: u16 = 0xff00 | (imm as u16);
         memory.write_to_8b(addr, self.a);
         3
     }
 
-    fn ld_to_a_from_hl_ind_dec(&mut self, memory: &mut Memory) -> u64 {
+    fn ld_from_hl_ind_dec_to_a(&mut self, memory: &mut Memory) -> u64 {
         let mut hl: u16 = self.get_hl();
         self.a = memory.read_from_8b(hl);
         hl = hl.wrapping_sub(1);
@@ -336,7 +344,7 @@ impl Cpu {
         2
     }
 
-    fn ld_to_a_from_hl_ind_inc(&mut self, memory: &mut Memory) -> u64 {
+    fn ld_from_hl_ind_inc_to_a(&mut self, memory: &mut Memory) -> u64 {
         let mut hl: u16 = self.get_hl();
         self.a = memory.read_from_8b(hl);
         hl = hl.wrapping_add(1);
@@ -357,7 +365,7 @@ impl Cpu {
         3
     }
 
-    fn ld_to_imm_from_sp(&mut self, imm_value: u16, memory: &mut Memory) -> u64 {
+    fn ld_to_imm_ind_from_sp(&mut self, imm_value: u16, memory: &mut Memory) -> u64 {
         memory.write_to_16b(imm_value, self.sp);
         5
     }
@@ -1132,25 +1140,30 @@ impl Cpu {
     }
 
     pub fn clock(&mut self, memory: &mut Memory) {
+
+        if self.halted {
+            return;
+         }
+
         let (instruction, size) = self.decode(memory);
 
         self.step(size);
 
         let cycles = self.execute(instruction, memory);
 
-        self.clock += cycles;
+        self.clock = self.clock.wrapping_add(cycles);
     }
 
     fn decode(&self, memory: &mut Memory) -> (Instruction, u16) {
-        let first_byte = memory.read_from_8b(self.pc);
+        let opcode = memory.read_from_8b(self.pc);
 
-        match first_byte {
-            0xcb => self.decode_cb_instruction(memory),
-            _ => self.decode_generic_instruction(memory),
+        match opcode {
+            0xcb => self.decode_cb(memory),
+            _ => self.decode_generic(memory),
         }
     }
 
-    fn decode_cb_instruction(&self, memory: &mut Memory) -> (Instruction, u16) {
+    fn decode_cb(&self, memory: &mut Memory) -> (Instruction, u16) {
         let mut helper_pc = self.pc + 1; // First byte is always 0xCB
 
         let byte = memory.read_from_8b(helper_pc);
@@ -1348,13 +1361,179 @@ impl Cpu {
         }
     }
 
-    fn decode_generic_instruction(&self, memory: &mut Memory) -> (Instruction, u16) {
-        let original_pc = self.pc;
-        let mut helper_pc = original_pc;
+    fn decode_generic(&self, memory: &mut Memory) -> (Instruction, u16) {
+        let mut helper_pc = self.pc;
 
-        let byte = memory.read_from_8b(helper_pc);
+        let opcode = memory.read_from_8b(helper_pc);
 
-        (Instruction::ADDCHLInd(), 0)
+        match (opcode & 0b11000000) >> 6 {
+            0b00 => self.decode_generic_block_0(opcode, memory),
+            0b01 => self.decode_generic_block_1(opcode, memory),
+            0b10 => self.decode_generic_block_2(opcode, memory),
+            0b11 => self.decode_generic_block_3(opcode, memory),
+            _ => panic!("Uknown block")
+        }
+    }
+
+    fn decode_generic_block_0(&self, opcode: u8, memory: &mut Memory) -> (Instruction, u16) {
+        match opcode { 
+            0b0000_0000 => (Instruction::NOP(), 1),
+            0b0000_0111 => (Instruction::RLCA(), 1),
+            0b0000_1111 => (Instruction::RRCA(), 1),
+            0b0001_0111 => (Instruction::RLA(), 1),
+            0b0001_1111 => (Instruction::RRA(), 1),
+            0b0010_0111 => (Instruction::DAA(), 1),
+            0b0010_1111 => (Instruction::CPL(), 1),
+            0b0011_0111 => (Instruction::SCF(), 1),
+            0b0011_1111 => (Instruction::CCF(), 1),
+            0b0001_0000 => (Instruction::STOP(), 2),
+            0b0001_1000 => {
+                let imm = self.extract_8b_operand(memory);
+                (Instruction::JR(imm), 2)
+            },
+            0b0000_1000 => {
+                let imm = self.extract_16b_operand(memory);
+                (Instruction::LDToImmIndFromSP(imm), 3)
+            },
+            opcode if (opcode & 0b1110_0111) == 0b0010_0000 => {
+                let imm = self.extract_8b_operand(memory);
+                let operand = Self::get_operand_from_opcode(opcode, OperandType::FlowCondition, false, false);
+                let cond_operand = FlowCondition::from_byte(operand);
+                (Instruction::JRCC(cond_operand, imm), 2)
+            },
+            opcode if (opcode & 0b1100_0111) == 0b0000_0110 => {
+                let imm = self.extract_8b_operand(memory);
+                let operand = Self::get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
+                let r8_operand = R8Operand::from_byte(operand);
+                
+                match r8_operand {
+                    R8Operand::B => (Instruction::LDImm(Register::B, imm), 2),
+                    R8Operand::C => (Instruction::LDImm(Register::C, imm), 2),
+                    R8Operand::D => (Instruction::LDImm(Register::D, imm), 2),
+                    R8Operand::E => (Instruction::LDImm(Register::E, imm), 2),
+                    R8Operand::H => (Instruction::LDImm(Register::H, imm), 2),
+                    R8Operand::A => (Instruction::LDImm(Register::A, imm), 2),
+                    R8Operand::L => (Instruction::LDImm(Register::L, imm), 2),
+                    R8Operand::HLInd => (Instruction::LDToHlIndImm(imm), 2),
+                }
+            },
+            opcode if (opcode & 0b1100_0111) == 0b0000_0100 => {
+                let operand = Self::get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
+                let r8_operand = R8Operand::from_byte(operand);
+
+                match r8_operand {
+                    R8Operand::B => (Instruction::INC(Register::B), 1),
+                    R8Operand::C => (Instruction::INC(Register::C), 1),
+                    R8Operand::D => (Instruction::INC(Register::D), 1),
+                    R8Operand::E => (Instruction::INC(Register::E), 1),
+                    R8Operand::H => (Instruction::INC(Register::H), 1),
+                    R8Operand::A => (Instruction::INC(Register::A), 1),
+                    R8Operand::L => (Instruction::INC(Register::L), 1),
+                    R8Operand::HLInd => (Instruction::INCHLInd(), 1),
+                }
+            },
+            opcode if (opcode & 0b1100_0111) == 0b0000_0101 => {
+                let operand = Self::get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
+                let r8_operand = R8Operand::from_byte(operand);
+
+                match r8_operand {
+                    R8Operand::B => (Instruction::DEC(Register::B), 1),
+                    R8Operand::C => (Instruction::DEC(Register::C), 1),
+                    R8Operand::D => (Instruction::DEC(Register::D), 1),
+                    R8Operand::E => (Instruction::DEC(Register::E), 1),
+                    R8Operand::H => (Instruction::DEC(Register::H), 1),
+                    R8Operand::A => (Instruction::DEC(Register::A), 1),
+                    R8Operand::L => (Instruction::DEC(Register::L), 1),
+                    R8Operand::HLInd => (Instruction::DECHLInd(), 1),
+                }
+            },
+            opcode if (opcode & 0b1100_1111) == 0b0000_0011 => {
+                let operand = Self::get_operand_from_opcode(opcode, OperandType::R16Operand, false, false);
+                let r16_operand = R16Operand::from_byte(operand);
+
+                match r16_operand {
+                    R16Operand::BC => (Instruction::INC16(Register16::BC), 1),
+                    R16Operand::DE => (Instruction::INC16(Register16::DE), 1),
+                    R16Operand::HL => (Instruction::INC16(Register16::HL), 1),
+                    R16Operand::SP => (Instruction::INC16(Register16::SP), 1),
+                }
+            },
+            opcode if (opcode & 0b1100_1111) == 0b0000_1011 => {
+                let operand = Self::get_operand_from_opcode(opcode, OperandType::R16Operand, false, false);
+                let r16_operand = R16Operand::from_byte(operand);
+
+                match r16_operand {
+                    R16Operand::BC => (Instruction::DEC16(Register16::BC), 1),
+                    R16Operand::DE => (Instruction::DEC16(Register16::DE), 1),
+                    R16Operand::HL => (Instruction::DEC16(Register16::HL), 1),
+                    R16Operand::SP => (Instruction::DEC16(Register16::SP), 1),
+                }
+            },
+            opcode if (opcode & 0b1100_1111) == 0b0000_1001 => {
+                let operand = Self::get_operand_from_opcode(opcode, OperandType::R16Operand, false, false);
+                let r16_operand = R16Operand::from_byte(operand);
+
+                match r16_operand {
+                    R16Operand::BC => (Instruction::ADDHL(Register16::BC), 1),
+                    R16Operand::DE => (Instruction::ADDHL(Register16::DE), 1),
+                    R16Operand::HL => (Instruction::ADDHL(Register16::HL), 1),
+                    R16Operand::SP => (Instruction::ADDHL(Register16::SP), 1),
+                }
+            },
+            opcode if (opcode & 0b1100_1111) == 0b0000_0001 => {
+                let imm = self.extract_16b_operand(memory);
+                let operand = Self::get_operand_from_opcode(opcode, OperandType::R16Operand, false, false);
+                let r16_operand = R16Operand::from_byte(operand);
+
+                match r16_operand {
+                    R16Operand::BC => (Instruction::LDImm16(Register16::BC, imm), 3),
+                    R16Operand::DE => (Instruction::LDImm16(Register16::DE, imm), 3),
+                    R16Operand::HL => (Instruction::LDImm16(Register16::HL, imm), 3),
+                    R16Operand::SP => (Instruction::LDImm16(Register16::SP, imm), 3),
+                }
+            },
+            opcode if (opcode & 0b1100_1111) == 0b0000_0010 => {
+                let operand = Self::get_operand_from_opcode(opcode, OperandType::R16MemOperand, false, false);
+                let r16mem_operand = R16MemOperand::from_byte(operand);
+
+                match r16mem_operand {
+                    R16MemOperand::BC  => (Instruction::LDToBCIndFromA(), 1),
+                    R16MemOperand::DE  => (Instruction::LDToDEIndFromA(), 1),
+                    R16MemOperand::HLI => (Instruction::LDToHLIndIncFromA(), 1),
+                    R16MemOperand::HLD => (Instruction::LDToHLIndDecFromA(), 1),
+                }
+            },
+            opcode if (opcode & 0b1100_1111) == 0b0000_1010 => {
+                let operand = Self::get_operand_from_opcode(opcode, OperandType::R16MemOperand, false, false);
+                let r16mem_operand = R16MemOperand::from_byte(operand);
+
+                match r16mem_operand {
+                    R16MemOperand::BC  => (Instruction::LDFromBCIndToA(), 1),
+                    R16MemOperand::DE  => (Instruction::LDFromDEIndToA(), 1),
+                    R16MemOperand::HLI => (Instruction::LDFromHLIndIncToA(), 1),
+                    R16MemOperand::HLD => (Instruction::LDFromHLIndDecToA(), 1),
+                }
+            },
+            _ => panic!("Unknown instruction Block Zero Hex: {:#x} | Binary: {:#b}", opcode, opcode)
+        }
+    }
+
+    fn decode_generic_block_1(&self, opcode: u8, memory: &mut Memory) -> (Instruction, u16) {
+        match opcode {
+            _ => (Instruction::NOP(), 1)
+        }
+    }
+
+    fn decode_generic_block_2(&self, opcode: u8, memory: &mut Memory) -> (Instruction, u16) {
+        match opcode {
+            _ => (Instruction::NOP(), 1)
+        }
+    }
+
+    fn decode_generic_block_3(&self, opcode: u8, memory: &mut Memory) -> (Instruction, u16) {
+        match opcode {
+            _ => (Instruction::NOP(), 1)
+        }
     }
 
     fn step(&mut self, instruction_size: u16) {
@@ -1368,22 +1547,22 @@ impl Cpu {
             Instruction::LDFromHLInd(register_to) => self.ld_from_hl_ind(register_to, memory),
             Instruction::LDToHLInd(register_from) => self.ld_to_hl_ind(register_from, memory),
             Instruction::LDToHlIndImm(imm) => self.ld_to_hl_ind_imm(imm, memory),
-            Instruction::LDFromBCToAInd() => self.ld_from_bc_to_a_ind(memory),
-            Instruction::LDFromDEToAInd() => self.ld_from_de_to_a_ind(memory),
+            Instruction::LDFromBCIndToA() => self.ld_from_bc_ind_to_a(memory),
+            Instruction::LDFromDEIndToA() => self.ld_from_de_ind_to_a(memory),
             Instruction::LDToBCIndFromA() => self.ld_to_bc_ind_from_a(memory),
             Instruction::LDToDEIndFromA() => self.ld_to_de_ind_from_a(memory),
-            Instruction::LDFromImmToA16(imm) => self.ld_from_imm_to_a_16(imm, memory),
-            Instruction::LDToImmFromA16(imm) => self.ld_to_imm_from_a_16(imm, memory),
+            Instruction::LDFromImmIndToA(imm) => self.ld_from_imm_ind_to_a(imm, memory),
+            Instruction::LDToImmIndFromA(imm) => self.ld_to_imm_ind_from_a(imm, memory),
             Instruction::LDToAFromCInd() => self.ld_to_a_from_c_ind(memory),
             Instruction::LDFromAToCInd() => self.ld_from_a_to_c_ind(memory),
-            Instruction::LDFromImmToA8(imm) => self.ld_from_imm_to_a_8(imm, memory),
-            Instruction::LDToImmFromA8(imm) => self.ld_to_imm_from_a_8(imm, memory),
-            Instruction::LDToAFromHLIndDec() => self.ld_to_a_from_hl_ind_dec(memory),
+            Instruction::LDFromImmIndToA8(imm) => self.ld_from_imm_ind_to_a_8(imm, memory),
+            Instruction::LDToImmIndFromA8(imm) => self.ld_to_imm_ind_from_a_8(imm, memory),
+            Instruction::LDFromHLIndDecToA() => self.ld_from_hl_ind_dec_to_a(memory),
             Instruction::LDToHLIndDecFromA() => self.ld_to_hl_ind_dec_from_a(memory),
-            Instruction::LDToAFromHLIndInc() => self.ld_to_a_from_hl_ind_inc(memory),
+            Instruction::LDFromHLIndIncToA() => self.ld_from_hl_ind_inc_to_a(memory),
             Instruction::LDToHLIndIncFromA() => self.ld_to_hl_ind_inc_from_a(memory),
             Instruction::LDImm16(register_to, imm) => self.ld_imm_16(register_to, imm),
-            Instruction::LDToImmFromSP(imm) => self.ld_to_imm_from_sp(imm, memory),
+            Instruction::LDToImmIndFromSP(imm) => self.ld_to_imm_ind_from_sp(imm, memory),
             Instruction::LDSPFromHL() => self.ld_sp_from_hl(),
             Instruction::PUSH(register_from) => self.push(register_from, memory),
             Instruction::POP(register_from) => self.pop(register_from, memory),

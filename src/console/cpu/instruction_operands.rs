@@ -138,7 +138,7 @@ impl FlowCondition {
             1 => FlowCondition::Zero,
             2 => FlowCondition::NotCarry,
             3 => FlowCondition::Carry,
-            _ => FlowCondition::Always,
+            _ => panic!("Unknown FlowCondition byte"),
         }
     }
 
