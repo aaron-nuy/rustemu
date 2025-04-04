@@ -2,6 +2,8 @@ use crate::console::utils::bit_utils;
 use crate::console::cpu::instruction::*;
 use crate::console::memory::*;
 
+use super::register;
+
 #[derive(Default)]
 pub struct Cpu {
     a: u8,
@@ -1176,14 +1178,11 @@ impl Cpu {
                     let r8_operand = R8Operand::from_byte(operand);
 
                     match r8_operand {
-                        R8Operand::B => (Instruction::RLCR(Register::B), 2),
-                        R8Operand::C => (Instruction::RLCR(Register::C), 2),
-                        R8Operand::D => (Instruction::RLCR(Register::D), 2),
-                        R8Operand::E => (Instruction::RLCR(Register::E), 2),
-                        R8Operand::H => (Instruction::RLCR(Register::H), 2),
-                        R8Operand::A => (Instruction::RLCR(Register::A), 2),
-                        R8Operand::L => (Instruction::RLCR(Register::L), 2),
                         R8Operand::HLInd => (Instruction::RLCHLInd(), 2),
+                        _ => {
+                            let register = Register::from_r8_operand(r8_operand);
+                            (Instruction::RLCR(register), 2)
+                        }
                     }
                 }
                 0b001 => {
@@ -1192,14 +1191,11 @@ impl Cpu {
                     let r8_operand = R8Operand::from_byte(operand);
 
                     match r8_operand {
-                        R8Operand::B => (Instruction::RRCR(Register::B), 2),
-                        R8Operand::C => (Instruction::RRCR(Register::C), 2),
-                        R8Operand::D => (Instruction::RRCR(Register::D), 2),
-                        R8Operand::E => (Instruction::RRCR(Register::E), 2),
-                        R8Operand::H => (Instruction::RRCR(Register::H), 2),
-                        R8Operand::A => (Instruction::RRCR(Register::A), 2),
-                        R8Operand::L => (Instruction::RRCR(Register::L), 2),
                         R8Operand::HLInd => (Instruction::RRCHLInd(), 2),
+                        _ => {
+                            let register = Register::from_r8_operand(r8_operand);
+                            (Instruction::RRCR(register), 2)
+                        }
                     }
                 }
                 0b010 => {
@@ -1208,14 +1204,11 @@ impl Cpu {
                     let r8_operand = R8Operand::from_byte(operand);
 
                     match r8_operand {
-                        R8Operand::B => (Instruction::RLR(Register::B), 2),
-                        R8Operand::C => (Instruction::RLR(Register::C), 2),
-                        R8Operand::D => (Instruction::RLR(Register::D), 2),
-                        R8Operand::E => (Instruction::RLR(Register::E), 2),
-                        R8Operand::H => (Instruction::RLR(Register::H), 2),
-                        R8Operand::A => (Instruction::RLR(Register::A), 2),
-                        R8Operand::L => (Instruction::RLR(Register::L), 2),
                         R8Operand::HLInd => (Instruction::RLHLInd(), 2),
+                        _ => {
+                            let register = Register::from_r8_operand(r8_operand);
+                            (Instruction::RLR(register), 2)
+                        }
                     }
                 }
                 0b011 => {
@@ -1224,14 +1217,11 @@ impl Cpu {
                     let r8_operand = R8Operand::from_byte(operand);
 
                     match r8_operand {
-                        R8Operand::B => (Instruction::RRR(Register::B), 2),
-                        R8Operand::C => (Instruction::RRR(Register::C), 2),
-                        R8Operand::D => (Instruction::RRR(Register::D), 2),
-                        R8Operand::E => (Instruction::RRR(Register::E), 2),
-                        R8Operand::H => (Instruction::RRR(Register::H), 2),
-                        R8Operand::A => (Instruction::RRR(Register::A), 2),
-                        R8Operand::L => (Instruction::RRR(Register::L), 2),
                         R8Operand::HLInd => (Instruction::RRHLInd(), 2),
+                        _ => {
+                            let register = Register::from_r8_operand(r8_operand);
+                            (Instruction::RRR(register), 2)
+                        }
                     }
                 }
                 0b100 => {
@@ -1240,14 +1230,11 @@ impl Cpu {
                     let r8_operand = R8Operand::from_byte(operand);
 
                     match r8_operand {
-                        R8Operand::B => (Instruction::SLAR(Register::B), 2),
-                        R8Operand::C => (Instruction::SLAR(Register::C), 2),
-                        R8Operand::D => (Instruction::SLAR(Register::D), 2),
-                        R8Operand::E => (Instruction::SLAR(Register::E), 2),
-                        R8Operand::H => (Instruction::SLAR(Register::H), 2),
-                        R8Operand::A => (Instruction::SLAR(Register::A), 2),
-                        R8Operand::L => (Instruction::SLAR(Register::L), 2),
                         R8Operand::HLInd => (Instruction::SLAHLInd(), 2),
+                        _ => {
+                            let register = Register::from_r8_operand(r8_operand);
+                            (Instruction::SLAR(register), 2)
+                        }
                     }
                 }
                 0b101 => {
@@ -1256,14 +1243,11 @@ impl Cpu {
                     let r8_operand = R8Operand::from_byte(operand);
 
                     match r8_operand {
-                        R8Operand::B => (Instruction::SRAR(Register::B), 2),
-                        R8Operand::C => (Instruction::SRAR(Register::C), 2),
-                        R8Operand::D => (Instruction::SRAR(Register::D), 2),
-                        R8Operand::E => (Instruction::SRAR(Register::E), 2),
-                        R8Operand::H => (Instruction::SRAR(Register::H), 2),
-                        R8Operand::A => (Instruction::SRAR(Register::A), 2),
-                        R8Operand::L => (Instruction::SRAR(Register::L), 2),
                         R8Operand::HLInd => (Instruction::SRAHLInd(), 2),
+                        _ => {
+                            let register = Register::from_r8_operand(r8_operand);
+                            (Instruction::SRAR(register), 2)
+                        }
                     }
                 }
                 0b110 => {
@@ -1272,14 +1256,11 @@ impl Cpu {
                     let r8_operand = R8Operand::from_byte(operand);
 
                     match r8_operand {
-                        R8Operand::B => (Instruction::SWAPR(Register::B), 2),
-                        R8Operand::C => (Instruction::SWAPR(Register::C), 2),
-                        R8Operand::D => (Instruction::SWAPR(Register::D), 2),
-                        R8Operand::E => (Instruction::SWAPR(Register::E), 2),
-                        R8Operand::H => (Instruction::SWAPR(Register::H), 2),
-                        R8Operand::A => (Instruction::SWAPR(Register::A), 2),
-                        R8Operand::L => (Instruction::SWAPR(Register::L), 2),
                         R8Operand::HLInd => (Instruction::SWAPHLInd(), 2),
+                        _ => {
+                            let register = Register::from_r8_operand(r8_operand);
+                            (Instruction::SWAPR(register), 2)
+                        }
                     }
                 }
                 0b111 => {
@@ -1288,14 +1269,11 @@ impl Cpu {
                     let r8_operand = R8Operand::from_byte(operand);
 
                     match r8_operand {
-                        R8Operand::B => (Instruction::SRLR(Register::B), 2),
-                        R8Operand::C => (Instruction::SRLR(Register::C), 2),
-                        R8Operand::D => (Instruction::SRLR(Register::D), 2),
-                        R8Operand::E => (Instruction::SRLR(Register::E), 2),
-                        R8Operand::H => (Instruction::SRLR(Register::H), 2),
-                        R8Operand::A => (Instruction::SRLR(Register::A), 2),
-                        R8Operand::L => (Instruction::SRLR(Register::L), 2),
                         R8Operand::HLInd => (Instruction::SRLHLInd(), 2),
+                        _ => {
+                            let register = Register::from_r8_operand(r8_operand);
+                            (Instruction::SRLR(register), 2)
+                        }
                     }
                 }
                 _ => panic!("Unknown CB instruction {}", byte),
@@ -1309,14 +1287,11 @@ impl Cpu {
                 let r8_operand = R8Operand::from_byte(operand);
 
                 match r8_operand {
-                    R8Operand::B => (Instruction::BITR(bit_index, Register::B), 2),
-                    R8Operand::C => (Instruction::BITR(bit_index, Register::C), 2),
-                    R8Operand::D => (Instruction::BITR(bit_index, Register::D), 2),
-                    R8Operand::E => (Instruction::BITR(bit_index, Register::E), 2),
-                    R8Operand::H => (Instruction::BITR(bit_index, Register::H), 2),
-                    R8Operand::A => (Instruction::BITR(bit_index, Register::A), 2),
-                    R8Operand::L => (Instruction::BITR(bit_index, Register::L), 2),
                     R8Operand::HLInd => (Instruction::BITHLInd(bit_index), 2),
+                    _ => {
+                        let register = Register::from_r8_operand(r8_operand);
+                        (Instruction::BITR(bit_index, register), 2)
+                    }
                 }
             }
             0b10 => {
@@ -1328,14 +1303,11 @@ impl Cpu {
                 let r8_operand = R8Operand::from_byte(operand);
 
                 match r8_operand {
-                    R8Operand::B => (Instruction::RESETR(bit_index, Register::B), 2),
-                    R8Operand::C => (Instruction::RESETR(bit_index, Register::C), 2),
-                    R8Operand::D => (Instruction::RESETR(bit_index, Register::D), 2),
-                    R8Operand::E => (Instruction::RESETR(bit_index, Register::E), 2),
-                    R8Operand::H => (Instruction::RESETR(bit_index, Register::H), 2),
-                    R8Operand::A => (Instruction::RESETR(bit_index, Register::A), 2),
-                    R8Operand::L => (Instruction::RESETR(bit_index, Register::L), 2),
                     R8Operand::HLInd => (Instruction::RESETHLInd(bit_index), 2),
+                    _ => {
+                        let register = Register::from_r8_operand(r8_operand);
+                        (Instruction::RESETR(bit_index, register), 2)
+                    }
                 }
             }
             0b11 => {
@@ -1347,14 +1319,11 @@ impl Cpu {
                 let r8_operand = R8Operand::from_byte(operand);
 
                 match r8_operand {
-                    R8Operand::B => (Instruction::SETR(bit_index, Register::B), 2),
-                    R8Operand::C => (Instruction::SETR(bit_index, Register::C), 2),
-                    R8Operand::D => (Instruction::SETR(bit_index, Register::D), 2),
-                    R8Operand::E => (Instruction::SETR(bit_index, Register::E), 2),
-                    R8Operand::H => (Instruction::SETR(bit_index, Register::H), 2),
-                    R8Operand::A => (Instruction::SETR(bit_index, Register::A), 2),
-                    R8Operand::L => (Instruction::SETR(bit_index, Register::L), 2),
                     R8Operand::HLInd => (Instruction::SETHLInd(bit_index), 2),
+                    _ => {
+                        let register = Register::from_r8_operand(r8_operand);
+                        (Instruction::SETR(bit_index, register), 2)
+                    }
                 }
             }
             _ => panic!("Unknown instruction: 0xCB {}", byte),
@@ -1407,14 +1376,11 @@ impl Cpu {
                 let r8_operand = R8Operand::from_byte(operand);
                 
                 match r8_operand {
-                    R8Operand::B => (Instruction::LDImm(Register::B, imm), 2),
-                    R8Operand::C => (Instruction::LDImm(Register::C, imm), 2),
-                    R8Operand::D => (Instruction::LDImm(Register::D, imm), 2),
-                    R8Operand::E => (Instruction::LDImm(Register::E, imm), 2),
-                    R8Operand::H => (Instruction::LDImm(Register::H, imm), 2),
-                    R8Operand::A => (Instruction::LDImm(Register::A, imm), 2),
-                    R8Operand::L => (Instruction::LDImm(Register::L, imm), 2),
                     R8Operand::HLInd => (Instruction::LDToHlIndImm(imm), 2),
+                    _ => {
+                        let register = Register::from_r8_operand(r8_operand);
+                        (Instruction::LDImm(register, imm), 2)
+                    },
                 }
             },
             opcode if (opcode & 0b1100_0111) == 0b0000_0100 => {
@@ -1422,14 +1388,11 @@ impl Cpu {
                 let r8_operand = R8Operand::from_byte(operand);
 
                 match r8_operand {
-                    R8Operand::B => (Instruction::INC(Register::B), 1),
-                    R8Operand::C => (Instruction::INC(Register::C), 1),
-                    R8Operand::D => (Instruction::INC(Register::D), 1),
-                    R8Operand::E => (Instruction::INC(Register::E), 1),
-                    R8Operand::H => (Instruction::INC(Register::H), 1),
-                    R8Operand::A => (Instruction::INC(Register::A), 1),
-                    R8Operand::L => (Instruction::INC(Register::L), 1),
                     R8Operand::HLInd => (Instruction::INCHLInd(), 1),
+                    _ => {
+                        let register = Register::from_r8_operand(r8_operand);
+                        (Instruction::INC(register), 1)
+                    }
                 }
             },
             opcode if (opcode & 0b1100_0111) == 0b0000_0101 => {
@@ -1437,60 +1400,37 @@ impl Cpu {
                 let r8_operand = R8Operand::from_byte(operand);
 
                 match r8_operand {
-                    R8Operand::B => (Instruction::DEC(Register::B), 1),
-                    R8Operand::C => (Instruction::DEC(Register::C), 1),
-                    R8Operand::D => (Instruction::DEC(Register::D), 1),
-                    R8Operand::E => (Instruction::DEC(Register::E), 1),
-                    R8Operand::H => (Instruction::DEC(Register::H), 1),
-                    R8Operand::A => (Instruction::DEC(Register::A), 1),
-                    R8Operand::L => (Instruction::DEC(Register::L), 1),
                     R8Operand::HLInd => (Instruction::DECHLInd(), 1),
+                    _ => {
+                        let register = Register::from_r8_operand(r8_operand);
+                        (Instruction::DEC(register), 1)
+                    }
                 }
             },
             opcode if (opcode & 0b1100_1111) == 0b0000_0011 => {
                 let operand = Self::get_operand_from_opcode(opcode, OperandType::R16Operand, false, false);
                 let r16_operand = R16Operand::from_byte(operand);
-
-                match r16_operand {
-                    R16Operand::BC => (Instruction::INC16(Register16::BC), 1),
-                    R16Operand::DE => (Instruction::INC16(Register16::DE), 1),
-                    R16Operand::HL => (Instruction::INC16(Register16::HL), 1),
-                    R16Operand::SP => (Instruction::INC16(Register16::SP), 1),
-                }
+                let register_16 = Register16::from_r16_operand(r16_operand);
+                (Instruction::INC16(register_16), 1)
             },
             opcode if (opcode & 0b1100_1111) == 0b0000_1011 => {
                 let operand = Self::get_operand_from_opcode(opcode, OperandType::R16Operand, false, false);
                 let r16_operand = R16Operand::from_byte(operand);
-
-                match r16_operand {
-                    R16Operand::BC => (Instruction::DEC16(Register16::BC), 1),
-                    R16Operand::DE => (Instruction::DEC16(Register16::DE), 1),
-                    R16Operand::HL => (Instruction::DEC16(Register16::HL), 1),
-                    R16Operand::SP => (Instruction::DEC16(Register16::SP), 1),
-                }
+                let register_16 = Register16::from_r16_operand(r16_operand);
+                (Instruction::DEC16(register_16), 1)
             },
             opcode if (opcode & 0b1100_1111) == 0b0000_1001 => {
                 let operand = Self::get_operand_from_opcode(opcode, OperandType::R16Operand, false, false);
                 let r16_operand = R16Operand::from_byte(operand);
-
-                match r16_operand {
-                    R16Operand::BC => (Instruction::ADDHL(Register16::BC), 1),
-                    R16Operand::DE => (Instruction::ADDHL(Register16::DE), 1),
-                    R16Operand::HL => (Instruction::ADDHL(Register16::HL), 1),
-                    R16Operand::SP => (Instruction::ADDHL(Register16::SP), 1),
-                }
+                let register_16 = Register16::from_r16_operand(r16_operand);
+                (Instruction::ADDHL(register_16), 1)
             },
             opcode if (opcode & 0b1100_1111) == 0b0000_0001 => {
                 let imm = self.extract_16b_operand(memory);
                 let operand = Self::get_operand_from_opcode(opcode, OperandType::R16Operand, false, false);
                 let r16_operand = R16Operand::from_byte(operand);
-
-                match r16_operand {
-                    R16Operand::BC => (Instruction::LDImm16(Register16::BC, imm), 3),
-                    R16Operand::DE => (Instruction::LDImm16(Register16::DE, imm), 3),
-                    R16Operand::HL => (Instruction::LDImm16(Register16::HL, imm), 3),
-                    R16Operand::SP => (Instruction::LDImm16(Register16::SP, imm), 3),
-                }
+                let register_16 = Register16::from_r16_operand(r16_operand);
+                (Instruction::LDImm16(register_16, imm), 3)
             },
             opcode if (opcode & 0b1100_1111) == 0b0000_0010 => {
                 let operand = Self::get_operand_from_opcode(opcode, OperandType::R16MemOperand, false, false);
@@ -1520,7 +1460,32 @@ impl Cpu {
 
     fn decode_generic_block_1(&self, opcode: u8, memory: &mut Memory) -> (Instruction, u16) {
         match opcode {
-            _ => (Instruction::NOP(), 1)
+            0b0111_0110 => (Instruction::HALT(), 1),
+            opcode if (opcode & 0b1100_0000) == 0b0100_0000 => {
+                let operand_dest = Self::get_operand_from_opcode(opcode, OperandType::R8Operand, true, false);
+                let operand_source = Self::get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
+
+                let r8_operand_dest = R8Operand::from_byte(operand_dest);
+                let r8_operand_source = R8Operand::from_byte(operand_source);
+                
+                match (r8_operand_dest.clone(), r8_operand_source.clone()) {
+                    (R8Operand::HLInd, R8Operand::HLInd) => (Instruction::HALT(), 1),
+                    (R8Operand::HLInd, _) => {
+                        let register_source = Register::from_r8_operand(r8_operand_source);
+                        (Instruction::LDToHLInd(register_source), 1)
+                    },
+                    (_, R8Operand::HLInd) => {
+                        let register_dest = Register::from_r8_operand(r8_operand_dest);
+                        (Instruction::LDFromHLInd(register_dest), 1)
+                    },
+                    (_, _) => {
+                        let register_dest = Register::from_r8_operand(r8_operand_dest);
+                        let register_source = Register::from_r8_operand(r8_operand_source);
+                        (Instruction::LD(register_dest, register_source), 1)
+                    },
+                }
+            }
+            _ => panic!("Unknown instruction Block One Hex: {:#x} | Binary: {:#b}", opcode, opcode)
         }
     }
 

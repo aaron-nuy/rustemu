@@ -1,4 +1,4 @@
-
+#[derive(Clone)]
 pub enum R8Operand {
     B,
     C,
@@ -39,6 +39,7 @@ impl R8Operand {
     }
 }
 
+#[derive(Clone)]
 pub enum R16Operand {
     BC,
     DE,
@@ -67,6 +68,7 @@ impl R16Operand {
     }
 }
 
+#[derive(Clone)]
 pub enum R16StkOperand {
     BC,
     DE,
@@ -95,6 +97,7 @@ impl R16StkOperand {
     }
 }
 
+#[derive(Clone)]
 pub enum R16MemOperand {
     BC,
     DE,
@@ -123,6 +126,7 @@ impl R16MemOperand {
     }
 }
 
+#[derive(Clone)]
 pub enum FlowCondition {
     NotZero,
     Zero,
@@ -153,6 +157,7 @@ impl FlowCondition {
     }
 }
 
+#[derive(Clone)]
 pub enum OperandType {
     R8Operand,
     R16Operand,
@@ -163,6 +168,7 @@ pub enum OperandType {
     BitIndex
 }
 
+#[derive(Clone)]
 pub enum Block {
     ZERO,
     ONE,
