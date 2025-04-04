@@ -1,6 +1,6 @@
-use crate::console::utils::bit_utils;
 use crate::console::cpu::instruction::*;
 use crate::console::memory::*;
+use crate::console::utils::bit_utils;
 
 use super::register;
 
@@ -18,7 +18,7 @@ pub struct Cpu {
     pc: u16,
     interrupts_enabled: bool,
     halted: bool,
-    clock: u64
+    clock: u64,
 }
 
 impl Cpu {
@@ -93,7 +93,7 @@ impl Cpu {
             Register::E => self.e,
             Register::F => self.f & 0xf0,
             Register::H => self.h,
-            Register::L => self.l
+            Register::L => self.l,
         }
     }
 
@@ -104,7 +104,7 @@ impl Cpu {
             Register16::DE => self.get_de(),
             Register16::HL => self.get_hl(),
             Register16::SP => self.sp,
-            Register16::PC => self.pc
+            Register16::PC => self.pc,
         }
     }
 
@@ -168,7 +168,7 @@ impl Cpu {
             FlowCondition::Zero => bit_utils::get_bit(self.f, Cpu::F_ZERO_FLAG_POS),
             FlowCondition::NotCarry => !bit_utils::get_bit(self.f, Cpu::F_CARRY_FLAG_POS),
             FlowCondition::Carry => bit_utils::get_bit(self.f, Cpu::F_CARRY_FLAG_POS),
-            FlowCondition::Always => true
+            FlowCondition::Always => true,
         }
     }
 
@@ -1142,10 +1142,9 @@ impl Cpu {
     }
 
     pub fn clock(&mut self, memory: &mut Memory) {
-
         if self.halted {
             return;
-         }
+        }
 
         let (instruction, size) = self.decode(memory);
 
@@ -1340,12 +1339,12 @@ impl Cpu {
             0b01 => self.decode_generic_block_1(opcode, memory),
             0b10 => self.decode_generic_block_2(opcode, memory),
             0b11 => self.decode_generic_block_3(opcode, memory),
-            _ => panic!("Uknown block")
+            _ => panic!("Uknown block"),
         }
     }
 
     fn decode_generic_block_0(&self, opcode: u8, memory: &mut Memory) -> (Instruction, u16) {
-        match opcode { 
+        match opcode {
             0b0000_0000 => (Instruction::NOP(), 1),
             0b0000_0111 => (Instruction::RLCA(), 1),
             0b0000_1111 => (Instruction::RRCA(), 1),
@@ -1359,32 +1358,35 @@ impl Cpu {
             0b0001_1000 => {
                 let imm = self.extract_8b_operand(memory);
                 (Instruction::JR(imm), 2)
-            },
+            }
             0b0000_1000 => {
                 let imm = self.extract_16b_operand(memory);
                 (Instruction::LDToImmIndFromSP(imm), 3)
-            },
+            }
             opcode if (opcode & 0b1110_0111) == 0b0010_0000 => {
                 let imm = self.extract_8b_operand(memory);
-                let operand = Self::get_operand_from_opcode(opcode, OperandType::FlowCondition, false, false);
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::FlowCondition, false, false);
                 let cond_operand = FlowCondition::from_byte(operand);
                 (Instruction::JRCC(cond_operand, imm), 2)
-            },
+            }
             opcode if (opcode & 0b1100_0111) == 0b0000_0110 => {
                 let imm = self.extract_8b_operand(memory);
-                let operand = Self::get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
                 let r8_operand = R8Operand::from_byte(operand);
-                
+
                 match r8_operand {
                     R8Operand::HLInd => (Instruction::LDToHlIndImm(imm), 2),
                     _ => {
                         let register = Register::from_r8_operand(r8_operand);
                         (Instruction::LDImm(register, imm), 2)
-                    },
+                    }
                 }
-            },
+            }
             opcode if (opcode & 0b1100_0111) == 0b0000_0100 => {
-                let operand = Self::get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
                 let r8_operand = R8Operand::from_byte(operand);
 
                 match r8_operand {
@@ -1394,9 +1396,10 @@ impl Cpu {
                         (Instruction::INC(register), 1)
                     }
                 }
-            },
+            }
             opcode if (opcode & 0b1100_0111) == 0b0000_0101 => {
-                let operand = Self::get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
                 let r8_operand = R8Operand::from_byte(operand);
 
                 match r8_operand {
@@ -1406,55 +1409,64 @@ impl Cpu {
                         (Instruction::DEC(register), 1)
                     }
                 }
-            },
+            }
             opcode if (opcode & 0b1100_1111) == 0b0000_0011 => {
-                let operand = Self::get_operand_from_opcode(opcode, OperandType::R16Operand, false, false);
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::R16Operand, false, false);
                 let r16_operand = R16Operand::from_byte(operand);
                 let register_16 = Register16::from_r16_operand(r16_operand);
                 (Instruction::INC16(register_16), 1)
-            },
+            }
             opcode if (opcode & 0b1100_1111) == 0b0000_1011 => {
-                let operand = Self::get_operand_from_opcode(opcode, OperandType::R16Operand, false, false);
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::R16Operand, false, false);
                 let r16_operand = R16Operand::from_byte(operand);
                 let register_16 = Register16::from_r16_operand(r16_operand);
                 (Instruction::DEC16(register_16), 1)
-            },
+            }
             opcode if (opcode & 0b1100_1111) == 0b0000_1001 => {
-                let operand = Self::get_operand_from_opcode(opcode, OperandType::R16Operand, false, false);
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::R16Operand, false, false);
                 let r16_operand = R16Operand::from_byte(operand);
                 let register_16 = Register16::from_r16_operand(r16_operand);
                 (Instruction::ADDHL(register_16), 1)
-            },
+            }
             opcode if (opcode & 0b1100_1111) == 0b0000_0001 => {
                 let imm = self.extract_16b_operand(memory);
-                let operand = Self::get_operand_from_opcode(opcode, OperandType::R16Operand, false, false);
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::R16Operand, false, false);
                 let r16_operand = R16Operand::from_byte(operand);
                 let register_16 = Register16::from_r16_operand(r16_operand);
                 (Instruction::LDImm16(register_16, imm), 3)
-            },
+            }
             opcode if (opcode & 0b1100_1111) == 0b0000_0010 => {
-                let operand = Self::get_operand_from_opcode(opcode, OperandType::R16MemOperand, false, false);
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::R16MemOperand, false, false);
                 let r16mem_operand = R16MemOperand::from_byte(operand);
 
                 match r16mem_operand {
-                    R16MemOperand::BC  => (Instruction::LDToBCIndFromA(), 1),
-                    R16MemOperand::DE  => (Instruction::LDToDEIndFromA(), 1),
+                    R16MemOperand::BC => (Instruction::LDToBCIndFromA(), 1),
+                    R16MemOperand::DE => (Instruction::LDToDEIndFromA(), 1),
                     R16MemOperand::HLI => (Instruction::LDToHLIndIncFromA(), 1),
                     R16MemOperand::HLD => (Instruction::LDToHLIndDecFromA(), 1),
                 }
-            },
+            }
             opcode if (opcode & 0b1100_1111) == 0b0000_1010 => {
-                let operand = Self::get_operand_from_opcode(opcode, OperandType::R16MemOperand, false, false);
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::R16MemOperand, false, false);
                 let r16mem_operand = R16MemOperand::from_byte(operand);
 
                 match r16mem_operand {
-                    R16MemOperand::BC  => (Instruction::LDFromBCIndToA(), 1),
-                    R16MemOperand::DE  => (Instruction::LDFromDEIndToA(), 1),
+                    R16MemOperand::BC => (Instruction::LDFromBCIndToA(), 1),
+                    R16MemOperand::DE => (Instruction::LDFromDEIndToA(), 1),
                     R16MemOperand::HLI => (Instruction::LDFromHLIndIncToA(), 1),
                     R16MemOperand::HLD => (Instruction::LDFromHLIndDecToA(), 1),
                 }
-            },
-            _ => panic!("Unknown instruction Block Zero Hex: {:#x} | Binary: {:#b}", opcode, opcode)
+            }
+            _ => panic!(
+                "Unknown instruction Block Zero Hex: {:#x} | Binary: {:#b}",
+                opcode, opcode
+            ),
         }
     }
 
@@ -1462,42 +1474,154 @@ impl Cpu {
         match opcode {
             0b0111_0110 => (Instruction::HALT(), 1),
             opcode if (opcode & 0b1100_0000) == 0b0100_0000 => {
-                let operand_dest = Self::get_operand_from_opcode(opcode, OperandType::R8Operand, true, false);
-                let operand_source = Self::get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
+                let operand_dest =
+                    Self::get_operand_from_opcode(opcode, OperandType::R8Operand, true, false);
+                let operand_source =
+                    Self::get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
 
                 let r8_operand_dest = R8Operand::from_byte(operand_dest);
                 let r8_operand_source = R8Operand::from_byte(operand_source);
-                
+
                 match (r8_operand_dest.clone(), r8_operand_source.clone()) {
                     (R8Operand::HLInd, R8Operand::HLInd) => (Instruction::HALT(), 1),
                     (R8Operand::HLInd, _) => {
                         let register_source = Register::from_r8_operand(r8_operand_source);
                         (Instruction::LDToHLInd(register_source), 1)
-                    },
+                    }
                     (_, R8Operand::HLInd) => {
                         let register_dest = Register::from_r8_operand(r8_operand_dest);
                         (Instruction::LDFromHLInd(register_dest), 1)
-                    },
+                    }
                     (_, _) => {
                         let register_dest = Register::from_r8_operand(r8_operand_dest);
                         let register_source = Register::from_r8_operand(r8_operand_source);
                         (Instruction::LD(register_dest, register_source), 1)
-                    },
+                    }
                 }
             }
-            _ => panic!("Unknown instruction Block One Hex: {:#x} | Binary: {:#b}", opcode, opcode)
+            _ => panic!(
+                "Unknown instruction Block One Hex: {:#x} | Binary: {:#b}",
+                opcode, opcode
+            ),
         }
     }
 
     fn decode_generic_block_2(&self, opcode: u8, memory: &mut Memory) -> (Instruction, u16) {
-        match opcode {
-            _ => (Instruction::NOP(), 1)
+        match (opcode & 0b0111_1000) >> 3 {
+            0 => {
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
+                let r8_operand = R8Operand::from_byte(operand);
+
+                match r8_operand {
+                    R8Operand::HLInd => (Instruction::ADDHLInd(), 1),
+                    _ => {
+                        let register = Register::from_r8_operand(r8_operand);
+                        (Instruction::ADD(register), 1)
+                    }
+                }
+            }
+            1 => {
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
+                let r8_operand = R8Operand::from_byte(operand);
+
+                match r8_operand {
+                    R8Operand::HLInd => (Instruction::ADDCHLInd(), 1),
+                    _ => {
+                        let register = Register::from_r8_operand(r8_operand);
+                        (Instruction::ADDC(register), 1)
+                    }
+                }
+            }
+            2 => {
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
+                let r8_operand = R8Operand::from_byte(operand);
+
+                match r8_operand {
+                    R8Operand::HLInd => (Instruction::SUBHLInd(), 1),
+                    _ => {
+                        let register = Register::from_r8_operand(r8_operand);
+                        (Instruction::SUB(register), 1)
+                    }
+                }
+            }
+            3 => {
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
+                let r8_operand = R8Operand::from_byte(operand);
+
+                match r8_operand {
+                    R8Operand::HLInd => (Instruction::SUBCHLInd(), 1),
+                    _ => {
+                        let register = Register::from_r8_operand(r8_operand);
+                        (Instruction::SUBC(register), 1)
+                    }
+                }
+            }
+            4 => {
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
+                let r8_operand = R8Operand::from_byte(operand);
+
+                match r8_operand {
+                    R8Operand::HLInd => (Instruction::ANDHLInd(), 1),
+                    _ => {
+                        let register = Register::from_r8_operand(r8_operand);
+                        (Instruction::AND(register), 1)
+                    }
+                }
+            }
+            5 => {
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
+                let r8_operand = R8Operand::from_byte(operand);
+
+                match r8_operand {
+                    R8Operand::HLInd => (Instruction::XORHLInd(), 1),
+                    _ => {
+                        let register = Register::from_r8_operand(r8_operand);
+                        (Instruction::XOR(register), 1)
+                    }
+                }
+            }
+            6 => {
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
+                let r8_operand = R8Operand::from_byte(operand);
+
+                match r8_operand {
+                    R8Operand::HLInd => (Instruction::ORHLInd(), 1),
+                    _ => {
+                        let register = Register::from_r8_operand(r8_operand);
+                        (Instruction::OR(register), 1)
+                    }
+                }
+            }
+            7 => {
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
+                let r8_operand = R8Operand::from_byte(operand);
+
+                match r8_operand {
+                    R8Operand::HLInd => (Instruction::CPHLInd(), 1),
+                    _ => {
+                        let register = Register::from_r8_operand(r8_operand);
+                        (Instruction::CP(register), 1)
+                    }
+                }
+            }
+            _ => panic!(
+                "Unknown instruction Block Two Hex: {:#x} | Binary: {:#b}",
+                opcode, opcode
+            ),
         }
     }
 
     fn decode_generic_block_3(&self, opcode: u8, memory: &mut Memory) -> (Instruction, u16) {
         match opcode {
-            _ => (Instruction::NOP(), 1)
+            _ => (Instruction::NOP(), 1),
         }
     }
 
@@ -1593,7 +1717,7 @@ impl Cpu {
             Instruction::SETR(bit, register) => self.setr(bit, register),
             Instruction::SETHLInd(bit) => self.set_hl_ind(bit, memory),
             Instruction::RESETR(bit, register) => self.resetr(bit, register),
-            Instruction::RESETHLInd(bit) => self.reset_hl_ind(bit,memory),
+            Instruction::RESETHLInd(bit) => self.reset_hl_ind(bit, memory),
             Instruction::NOP() => self.nop(),
             Instruction::JP(addr) => self.jp(addr),
             Instruction::JPHL() => self.jp_hl(),
@@ -1609,11 +1733,10 @@ impl Cpu {
             Instruction::HALT() => self.halt(),
             Instruction::STOP() => self.stop(),
             Instruction::DI() => self.di(),
-            Instruction::EI() => self.ei()
+            Instruction::EI() => self.ei(),
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -1621,23 +1744,22 @@ mod tests {
     use crate::console::cpu::instruction::R8Operand;
     use crate::console::utils::bit_utils;
 
-    
     fn execute_cb_instruction(cpu: &mut Cpu, memory: &mut Memory, offset: &mut u16, subopcode: u8) {
-        memory.write_to_8b(*offset, 0xCB);
+        memory.write_to_8b(*offset, 0xcb);
         memory.write_to_8b(*offset + 1, subopcode);
         *offset += 2;
         cpu.clock(memory);
     }
-    
+
     fn preload_hl(memory: &mut Memory, cpu: &Cpu, value: u8) {
         let hl_addr = cpu.get_register_16(Register16::HL);
         memory.write_to_8b(hl_addr, value);
     }
-    
+
     fn carry_flag(cpu: &Cpu) -> bool {
         bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_CARRY_FLAG_POS)
     }
-    
+
     macro_rules! assert_reg {
         ($cpu:expr, $reg:expr, $expected:expr) => {
             assert_eq!(
@@ -1649,7 +1771,7 @@ mod tests {
             )
         };
     }
-    
+
     macro_rules! assert_mem {
         ($memory:expr, $addr:expr, $expected:expr) => {
             assert_eq!(
@@ -1661,178 +1783,298 @@ mod tests {
             )
         };
     }
-    
+
     #[test]
     fn test_cb_set_operations() {
         let mut cpu = Cpu::new();
         let mut memory = Memory::new();
         let mut offset: u16 = 0;
-    
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b11_001_000 | R8Operand::to_byte(R8Operand::E));
+
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b11_001_000 | R8Operand::to_byte(R8Operand::E),
+        );
         assert_reg!(cpu, Register::E, 0b0000_0010);
-    
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b11_000_000 | R8Operand::to_byte(R8Operand::D));
+
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b11_000_000 | R8Operand::to_byte(R8Operand::D),
+        );
         assert_reg!(cpu, Register::D, 0b0000_0001);
-    
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b11_011_000 | R8Operand::to_byte(R8Operand::A));
+
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b11_011_000 | R8Operand::to_byte(R8Operand::A),
+        );
         assert_reg!(cpu, Register::A, 0b0000_1000);
-    
+
         let hl_addr = cpu.get_register_16(Register16::HL);
-        preload_hl(&mut memory, &cpu, 0xCB);
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b11_010_000 | R8Operand::to_byte(R8Operand::HLInd));
-        assert_mem!(memory, hl_addr, 0xCB | 0b0000_0100);
-    
+        preload_hl(&mut memory, &cpu, 0xcb);
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b11_010_000 | R8Operand::to_byte(R8Operand::HLInd),
+        );
+        assert_mem!(memory, hl_addr, 0xcb | 0b0000_0100);
+
         // Ensure other registers remain unchanged.
         assert_reg!(cpu, Register::A, 0b0000_1000);
         assert_reg!(cpu, Register::E, 0b0000_0010);
         assert_reg!(cpu, Register::D, 0b0000_0001);
     }
-    
+
     #[test]
     fn test_cb_res_operations() {
         let mut cpu = Cpu::new();
         let mut memory = Memory::new();
         let mut offset: u16 = 0;
-    
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b11_001_000 | R8Operand::to_byte(R8Operand::E));
+
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b11_001_000 | R8Operand::to_byte(R8Operand::E),
+        );
         assert_reg!(cpu, Register::E, 0b0000_0010);
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b10_001_000 | R8Operand::to_byte(R8Operand::E));
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b10_001_000 | R8Operand::to_byte(R8Operand::E),
+        );
         assert_reg!(cpu, Register::E, 0);
-    
+
         let hl_addr = cpu.get_register_16(Register16::HL);
-        preload_hl(&mut memory, &cpu, 0xCB);
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b10_011_000 | R8Operand::to_byte(R8Operand::HLInd));
-        assert_mem!(memory, hl_addr, 0xC3);
+        preload_hl(&mut memory, &cpu, 0xcb);
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b10_011_000 | R8Operand::to_byte(R8Operand::HLInd),
+        );
+        assert_mem!(memory, hl_addr, 0xc3);
     }
-    
+
     #[test]
     fn test_cb_bit_operations() {
         let mut cpu = Cpu::new();
         let mut memory = Memory::new();
         let mut offset: u16 = 0;
-    
+
         cpu.set_register(Register::C, 0b0010_0000);
-    
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b01_001_000 | R8Operand::to_byte(R8Operand::C));
-        assert!(bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS),
-                "BIT 1 in C should set the zero flag");
-    
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b01_101_000 | R8Operand::to_byte(R8Operand::C));
-        assert!(!bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS),
-                "BIT 5 in C should reset the zero flag");
-    
+
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b01_001_000 | R8Operand::to_byte(R8Operand::C),
+        );
+        assert!(
+            bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS),
+            "BIT 1 in C should set the zero flag"
+        );
+
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b01_101_000 | R8Operand::to_byte(R8Operand::C),
+        );
+        assert!(
+            !bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS),
+            "BIT 5 in C should reset the zero flag"
+        );
+
         preload_hl(&mut memory, &cpu, 0b0000_1000);
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b01_011_000 | R8Operand::to_byte(R8Operand::HLInd));
-        assert!(!bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS),
-                "BIT 3 in [HL] should reset the zero flag");
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b01_011_000 | R8Operand::to_byte(R8Operand::HLInd),
+        );
+        assert!(
+            !bit_utils::get_bit(cpu.get_register(Register::F), Cpu::F_ZERO_FLAG_POS),
+            "BIT 3 in [HL] should reset the zero flag"
+        );
     }
-    
+
     #[test]
     fn test_cb_swap_operations() {
         let mut cpu = Cpu::new();
         let mut memory = Memory::new();
         let mut offset: u16 = 0;
-    
+
         cpu.set_register(Register::E, 0b1111_0000);
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_110_000 | R8Operand::to_byte(R8Operand::E));
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b00_110_000 | R8Operand::to_byte(R8Operand::E),
+        );
         assert_reg!(cpu, Register::E, 0b0000_1111);
-    
+
         let hl_addr = cpu.get_register_16(Register16::HL);
-        preload_hl(&mut memory, &cpu, 0xCB);
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_110_000 | R8Operand::to_byte(R8Operand::HLInd));
-        assert_mem!(memory, hl_addr, 0xBC);
+        preload_hl(&mut memory, &cpu, 0xcb);
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b00_110_000 | R8Operand::to_byte(R8Operand::HLInd),
+        );
+        assert_mem!(memory, hl_addr, 0xbc);
     }
-    
+
     #[test]
     fn test_cb_srl_operations() {
         let mut cpu = Cpu::new();
         let mut memory = Memory::new();
         let mut offset: u16 = 0;
-    
+
         cpu.set_register(Register::B, 0b1111_0000);
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_111_000 | R8Operand::to_byte(R8Operand::B));
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b00_111_000 | R8Operand::to_byte(R8Operand::B),
+        );
         let original_lsb = (0b1111_0000 & 1) != 0;
         assert_reg!(cpu, Register::B, 0b0111_1000);
-        assert_eq!(carry_flag(&cpu), original_lsb, "Carry flag should match original LSB");
-    
+        assert_eq!(
+            carry_flag(&cpu),
+            original_lsb,
+            "Carry flag should match original LSB"
+        );
+
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut memory, &cpu, 0b1100_1011);
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_111_000 | R8Operand::to_byte(R8Operand::HLInd));
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b00_111_000 | R8Operand::to_byte(R8Operand::HLInd),
+        );
         assert_mem!(memory, hl_addr, 0b0110_0101);
         assert!(carry_flag(&cpu), "SRL [HL] should set the carry flag");
     }
-    
+
     #[test]
     fn test_cb_rrc_operations() {
         let mut cpu = Cpu::new();
         let mut memory = Memory::new();
         let mut offset: u16 = 0;
-        
+
         cpu.set_register(Register::E, 0b1111_0000);
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_001_000 | R8Operand::to_byte(R8Operand::E));
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b00_001_000 | R8Operand::to_byte(R8Operand::E),
+        );
         assert_reg!(cpu, Register::E, 0b0111_1000);
         assert!(!carry_flag(&cpu), "RRC on E should not set the carry flag");
-    
+
         // Test RRC on memory pointed by HL.
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut memory, &cpu, 0b1110_0101);
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_001_000 | R8Operand::to_byte(R8Operand::HLInd));
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b00_001_000 | R8Operand::to_byte(R8Operand::HLInd),
+        );
         assert_mem!(memory, hl_addr, 0b1111_0010);
         assert!(carry_flag(&cpu), "RRC [HL] should set the carry flag");
     }
-    
+
     #[test]
     fn test_cb_rlc_operations() {
         let mut cpu = Cpu::new();
         let mut memory = Memory::new();
         let mut offset: u16 = 0;
-    
+
         cpu.set_register(Register::A, 0b0000_1111);
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_000_000 | R8Operand::to_byte(R8Operand::A));
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b00_000_000 | R8Operand::to_byte(R8Operand::A),
+        );
         assert_reg!(cpu, Register::A, 0b0001_1110);
         assert!(!carry_flag(&cpu), "RLC on A should not set the carry flag");
-    
+
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut memory, &cpu, 0b0010_1111);
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_000_000 | R8Operand::to_byte(R8Operand::HLInd));
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b00_000_000 | R8Operand::to_byte(R8Operand::HLInd),
+        );
         assert_mem!(memory, hl_addr, 0b0101_1110);
         assert!(!carry_flag(&cpu), "RLC [HL] should not set the carry flag");
     }
-    
+
     #[test]
     fn test_cb_sra_operations() {
         let mut cpu = Cpu::new();
         let mut memory = Memory::new();
         let mut offset: u16 = 0;
-    
+
         cpu.set_register(Register::D, 0b1111_0000);
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_101_000 | R8Operand::to_byte(R8Operand::D));
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b00_101_000 | R8Operand::to_byte(R8Operand::D),
+        );
         let original_lsb = (0b1111_0000 & 1) != 0;
         assert_reg!(cpu, Register::D, 0b1111_1000);
         assert_eq!(carry_flag(&cpu), original_lsb, "SRA D carry flag mismatch");
-    
+
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut memory, &cpu, 0b1110_0101);
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_101_000 | R8Operand::to_byte(R8Operand::HLInd));
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b00_101_000 | R8Operand::to_byte(R8Operand::HLInd),
+        );
         assert_mem!(memory, hl_addr, 0b1111_0010);
         assert!(carry_flag(&cpu), "SRA [HL] should set the carry flag");
     }
-    
+
     #[test]
     fn test_cb_sla_operations() {
         let mut cpu = Cpu::new();
         let mut memory = Memory::new();
         let mut offset: u16 = 0;
-    
+
         cpu.set_register(Register::E, 0b1111_0000);
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_100_000 | R8Operand::to_byte(R8Operand::E));
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b00_100_000 | R8Operand::to_byte(R8Operand::E),
+        );
         let original_msb = (0b1111_0000 & 0x80) != 0;
         assert_reg!(cpu, Register::E, 0b1110_0000);
         assert_eq!(carry_flag(&cpu), original_msb, "SLA E carry flag mismatch");
-    
+
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut memory, &cpu, 0b0010_1011);
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_100_000 | R8Operand::to_byte(R8Operand::HLInd));
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b00_100_000 | R8Operand::to_byte(R8Operand::HLInd),
+        );
         assert_mem!(memory, hl_addr, 0b0101_0110);
         assert!(!carry_flag(&cpu), "SLA [HL] should not set the carry flag");
     }
@@ -1842,36 +2084,66 @@ mod tests {
         let mut cpu = Cpu::new();
         let mut memory = Memory::new();
         let mut offset: u16 = 0;
-        
+
         cpu.set_register(Register::E, 0b1111_0000);
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_011_000 | R8Operand::to_byte(R8Operand::E));
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b00_011_000 | R8Operand::to_byte(R8Operand::E),
+        );
         assert_reg!(cpu, Register::E, 0b0111_1000);
-        assert_eq!(carry_flag(&cpu), false, "RR on E should not set the carry flag");
-    
+        assert_eq!(
+            carry_flag(&cpu),
+            false,
+            "RR on E should not set the carry flag"
+        );
+
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut memory, &cpu, 0b1110_0101);
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_011_000 | R8Operand::to_byte(R8Operand::HLInd));
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b00_011_000 | R8Operand::to_byte(R8Operand::HLInd),
+        );
         assert_mem!(memory, hl_addr, 0b0111_0010);
         assert!(carry_flag(&cpu), "RR [HL] should set the carry flag");
     }
-    
+
     #[test]
     fn test_cb_rl_operations() {
         let mut cpu = Cpu::new();
         let mut memory = Memory::new();
         let mut offset: u16 = 0;
-    
+
         cpu.set_register(Register::A, 0b0000_1111);
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_010_000 | R8Operand::to_byte(R8Operand::A));
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b00_010_000 | R8Operand::to_byte(R8Operand::A),
+        );
         assert_reg!(cpu, Register::A, 0b0001_1110);
-        assert_eq!(carry_flag(&cpu), false, "RL on A should not set the carry flag");
-    
+        assert_eq!(
+            carry_flag(&cpu),
+            false,
+            "RL on A should not set the carry flag"
+        );
+
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut memory, &cpu, 0b0010_1111);
-        execute_cb_instruction(&mut cpu, &mut memory, &mut offset, 0b00_010_000 | R8Operand::to_byte(R8Operand::HLInd));
+        execute_cb_instruction(
+            &mut cpu,
+            &mut memory,
+            &mut offset,
+            0b00_010_000 | R8Operand::to_byte(R8Operand::HLInd),
+        );
         assert_mem!(memory, hl_addr, 0b0101_1110);
-        assert_eq!(carry_flag(&cpu), false, "RL [HL] should not set the carry flag");
+        assert_eq!(
+            carry_flag(&cpu),
+            false,
+            "RL [HL] should not set the carry flag"
+        );
     }
-    
-
 }
