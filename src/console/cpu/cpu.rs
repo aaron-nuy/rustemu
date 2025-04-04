@@ -168,7 +168,6 @@ impl Cpu {
             FlowCondition::Zero => bit_utils::get_bit(self.f, Cpu::F_ZERO_FLAG_POS),
             FlowCondition::NotCarry => !bit_utils::get_bit(self.f, Cpu::F_CARRY_FLAG_POS),
             FlowCondition::Carry => bit_utils::get_bit(self.f, Cpu::F_CARRY_FLAG_POS),
-            FlowCondition::Always => true,
         }
     }
 
@@ -390,7 +389,7 @@ impl Cpu {
     }
 
     fn ld_hl_from_adjusted_sp(&mut self, imm: i8) -> u64 {
-        let adjusted_sp = self.sp.wrapping_add_signed(imm as i8 as i16);
+        let adjusted_sp = self.sp.wrapping_add_signed(imm as i16);
         self.set_hl(adjusted_sp);
 
         let sp = self.sp;
@@ -757,8 +756,8 @@ impl Cpu {
         2
     }
 
-    fn add_sp_imm(&mut self, imm: u8) -> u64 {
-        let new_value = self.sp.wrapping_add_signed(imm as i8 as i16);
+    fn add_sp_imm(&mut self, imm: i8) -> u64 {
+        let new_value = self.sp.wrapping_add_signed(imm as i16);
 
         let sp = self.sp;
 
@@ -1066,12 +1065,12 @@ impl Cpu {
         }
     }
 
-    fn jr(&mut self, imm: u8) -> u64 {
-        self.pc = self.pc.wrapping_add_signed(imm as i8 as i16);
+    fn jr(&mut self, imm: i8) -> u64 {
+        self.pc = self.pc.wrapping_add_signed(imm as i16);
         3
     }
 
-    fn jr_cc(&mut self, cond: FlowCondition, imm: u8) -> u64 {
+    fn jr_cc(&mut self, cond: FlowCondition, imm: i8) -> u64 {
         if self.evaluate_flow_condition(cond) {
             self.jr(imm);
             3
@@ -1170,8 +1169,8 @@ impl Cpu {
         let byte = memory.read_from_8b(helper_pc);
 
         match (byte & 0b11000000) >> 6 {
-            0b00 => match (byte & 0b00111000) >> 3 {
-                0b000 => {
+            0 => match (byte & 0b00111000) >> 3 {
+                0 => {
                     let operand =
                         Self::get_operand_from_opcode(byte, OperandType::R8Operand, false, true);
                     let r8_operand = R8Operand::from_byte(operand);
@@ -1184,7 +1183,7 @@ impl Cpu {
                         }
                     }
                 }
-                0b001 => {
+                1 => {
                     let operand =
                         Self::get_operand_from_opcode(byte, OperandType::R8Operand, false, true);
                     let r8_operand = R8Operand::from_byte(operand);
@@ -1197,7 +1196,7 @@ impl Cpu {
                         }
                     }
                 }
-                0b010 => {
+                2 => {
                     let operand =
                         Self::get_operand_from_opcode(byte, OperandType::R8Operand, false, true);
                     let r8_operand = R8Operand::from_byte(operand);
@@ -1210,7 +1209,7 @@ impl Cpu {
                         }
                     }
                 }
-                0b011 => {
+                3 => {
                     let operand =
                         Self::get_operand_from_opcode(byte, OperandType::R8Operand, false, true);
                     let r8_operand = R8Operand::from_byte(operand);
@@ -1223,7 +1222,7 @@ impl Cpu {
                         }
                     }
                 }
-                0b100 => {
+                4 => {
                     let operand =
                         Self::get_operand_from_opcode(byte, OperandType::R8Operand, false, true);
                     let r8_operand = R8Operand::from_byte(operand);
@@ -1236,7 +1235,7 @@ impl Cpu {
                         }
                     }
                 }
-                0b101 => {
+                5 => {
                     let operand =
                         Self::get_operand_from_opcode(byte, OperandType::R8Operand, false, true);
                     let r8_operand = R8Operand::from_byte(operand);
@@ -1249,7 +1248,7 @@ impl Cpu {
                         }
                     }
                 }
-                0b110 => {
+                6 => {
                     let operand =
                         Self::get_operand_from_opcode(byte, OperandType::R8Operand, false, true);
                     let r8_operand = R8Operand::from_byte(operand);
@@ -1262,7 +1261,7 @@ impl Cpu {
                         }
                     }
                 }
-                0b111 => {
+                7 => {
                     let operand =
                         Self::get_operand_from_opcode(byte, OperandType::R8Operand, false, true);
                     let r8_operand = R8Operand::from_byte(operand);
@@ -1277,7 +1276,7 @@ impl Cpu {
                 }
                 _ => panic!("Unknown CB instruction {}", byte),
             },
-            0b01 => {
+            1 => {
                 let bit_index =
                     Self::get_operand_from_opcode(byte, OperandType::BitIndex, false, true);
                 let operand =
@@ -1293,7 +1292,7 @@ impl Cpu {
                     }
                 }
             }
-            0b10 => {
+            2 => {
                 let bit_index =
                     Self::get_operand_from_opcode(byte, OperandType::BitIndex, false, true);
                 let operand =
@@ -1309,7 +1308,7 @@ impl Cpu {
                     }
                 }
             }
-            0b11 => {
+            3 => {
                 let bit_index =
                     Self::get_operand_from_opcode(byte, OperandType::BitIndex, false, true);
                 let operand =
@@ -1357,7 +1356,7 @@ impl Cpu {
             0b0001_0000 => (Instruction::STOP(), 2),
             0b0001_1000 => {
                 let imm = self.extract_8b_operand(memory);
-                (Instruction::JR(imm), 2)
+                (Instruction::JR(imm as i8), 2)
             }
             0b0000_1000 => {
                 let imm = self.extract_16b_operand(memory);
@@ -1368,7 +1367,7 @@ impl Cpu {
                 let operand =
                     Self::get_operand_from_opcode(opcode, OperandType::FlowCondition, false, false);
                 let cond_operand = FlowCondition::from_byte(operand);
-                (Instruction::JRCC(cond_operand, imm), 2)
+                (Instruction::JRCC(cond_operand, imm as i8), 2)
             }
             opcode if (opcode & 0b1100_0111) == 0b0000_0110 => {
                 let imm = self.extract_8b_operand(memory);
@@ -1621,7 +1620,133 @@ impl Cpu {
 
     fn decode_generic_block_3(&self, opcode: u8, memory: &mut Memory) -> (Instruction, u16) {
         match opcode {
-            _ => (Instruction::NOP(), 1),
+            // Table 6
+            0b1111_0011 => (Instruction::DI(), 1),
+            0b1111_1011 => (Instruction::EI(), 1),
+            //Table 1
+            0b1100_0110 => {
+                let imm = self.extract_8b_operand(memory);
+                (Instruction::ADDImm(imm), 2)
+            }
+            0b1100_1110 => {
+                let imm = self.extract_8b_operand(memory);
+                (Instruction::ADDCImm(imm), 2)
+            }
+            0b1101_0110 => {
+                let imm = self.extract_8b_operand(memory);
+                (Instruction::SUBImm(imm), 2)
+            }
+            0b1101_1110 => {
+                let imm = self.extract_8b_operand(memory);
+                (Instruction::SUBCImm(imm), 2)
+            }
+            0b1110_0110 => {
+                let imm = self.extract_8b_operand(memory);
+                (Instruction::ANDImm(imm), 2)
+            }
+            0b1110_1110 => {
+                let imm = self.extract_8b_operand(memory);
+                (Instruction::XORImm(imm), 2)
+            }
+            0b1111_0110 => {
+                let imm = self.extract_8b_operand(memory);
+                (Instruction::ORImm(imm), 2)
+            }
+            0b1111_1110 => {
+                let imm = self.extract_8b_operand(memory);
+                (Instruction::CPImm(imm), 2)
+            }
+            // Table 5
+            0b1110_1000 => {
+                let imm = self.extract_8b_operand(memory);
+                (Instruction::ADDSPImm(imm as i8), 2)
+            }
+            0b1111_1000 => {
+                let imm = self.extract_8b_operand(memory);
+                (Instruction::LDHLFromAdjustedSP(imm as i8), 2)
+            }
+            0b1111_1001 => (Instruction::LDSPFromHL(), 1),
+            // Table 4
+            0b1110_0010 => (Instruction::LDFromAToCInd(), 1),
+            0b1110_0000 => {
+                let imm = self.extract_8b_operand(memory);
+                (Instruction::LDToImmIndFromA8(imm), 2)
+            }
+            0b1110_1010 => {
+                let imm = self.extract_16b_operand(memory);
+                (Instruction::LDToImmIndFromA(imm), 3)
+            }
+            0b1111_0010 => (Instruction::LDToAFromCInd(), 1),
+            0b1111_0000 => {
+                let imm = self.extract_8b_operand(memory);
+                (Instruction::LDFromImmIndToA8(imm), 2)
+            }
+            0b1111_1010 => {
+                let imm = self.extract_16b_operand(memory);
+                (Instruction::LDFromImmIndToA(imm), 3)
+            }
+            // Table 3
+            opcode if (opcode & 0b1100_1111) == 0b1100_0001 => {
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::R16StkOperand, false, false);
+                let r16stk_operand = R16StkOperand::from_byte(operand);
+                let register_16 = Register16::from_r16stk_operand(r16stk_operand);
+
+                (Instruction::POP(register_16), 1)
+            }
+            opcode if (opcode & 0b1100_1111) == 0b1100_0101 => {
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::R16StkOperand, false, false);
+                let r16stk_operand = R16StkOperand::from_byte(operand);
+                let register_16 = Register16::from_r16stk_operand(r16stk_operand);
+
+                (Instruction::PUSH(register_16), 1)
+            }
+            // Table 2
+            0b1100_1001 => (Instruction::RET(), 1),
+            0b1101_1001 => (Instruction::RETI(), 1),
+            0b1100_0011 => {
+                let imm = self.extract_16b_operand(memory);
+                (Instruction::JP(imm), 3)
+            }
+            0b1110_1001 => (Instruction::JPHL(), 1),
+            0b1100_1101 => {
+                let imm = self.extract_16b_operand(memory);
+                (Instruction::CALL(imm), 3)
+            }
+            opcode if (opcode & 0b1110_0111) == 0b1100_0000 => {
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::FlowCondition, false, false);
+                let cond = FlowCondition::from_byte(operand);
+
+                (Instruction::RETCC(cond), 1)
+            }
+            opcode if (opcode & 0b1110_0111) == 0b1100_0010 => {
+                let imm = self.extract_16b_operand(memory);
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::FlowCondition, false, false);
+                let cond = FlowCondition::from_byte(operand);
+
+                (Instruction::JPCC(cond, imm), 3)
+            }
+            opcode if (opcode & 0b1110_0111) == 0b1100_0100 => {
+                let imm = self.extract_16b_operand(memory);
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::FlowCondition, false, false);
+                let cond = FlowCondition::from_byte(operand);
+
+                (Instruction::CALLCC(cond, imm), 3)
+            }
+            opcode if (opcode & 0b1100_0111) == 0b1100_0111 => {
+                let operand =
+                    Self::get_operand_from_opcode(opcode, OperandType::ResetTarget, false, false);
+
+                (Instruction::RST(operand), 1)
+            }
+            _ => panic!(
+                "Unknown instruction Block Three Hex: {:#x} | Binary: {:#b}",
+                opcode, opcode
+            ),
         }
     }
 

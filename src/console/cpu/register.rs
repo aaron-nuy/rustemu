@@ -1,5 +1,4 @@
-use crate::console::cpu::instruction_operands::R8Operand;
-use crate::console::cpu::instruction_operands::R16Operand;
+use crate::console::cpu::instruction_operands::*;
 
 #[derive(Clone)]
 pub enum Register {
@@ -45,6 +44,15 @@ impl Register16 {
             R16Operand::DE => Register16::DE,
             R16Operand::HL => Register16::HL,
             R16Operand::SP => Register16::SP
+        }
+    }
+
+    pub fn from_r16stk_operand(r16stk_operand: R16StkOperand) -> Self {
+        match r16stk_operand {
+            R16StkOperand::BC => Register16::BC,
+            R16StkOperand::DE => Register16::DE,
+            R16StkOperand::HL => Register16::HL,
+            R16StkOperand::AF => Register16::AF
         }
     }
 }

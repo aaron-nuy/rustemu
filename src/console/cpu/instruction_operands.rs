@@ -131,8 +131,7 @@ pub enum FlowCondition {
     NotZero,
     Zero,
     NotCarry,
-    Carry,
-    Always,
+    Carry
 }
 
 impl FlowCondition {
@@ -151,8 +150,7 @@ impl FlowCondition {
             FlowCondition::NotZero => 0,
             FlowCondition::Zero => 1,
             FlowCondition::NotCarry => 2,
-            FlowCondition::Carry => 3,
-            FlowCondition::Always => 4,
+            FlowCondition::Carry => 3
         }
     }
 }
