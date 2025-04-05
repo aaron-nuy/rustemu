@@ -1,3 +1,5 @@
+use super::register::Register;
+
 #[derive(Clone)]
 pub enum R8Operand {
     B,
@@ -35,6 +37,19 @@ impl R8Operand {
             R8Operand::L => 5,
             R8Operand::HLInd => 6,
             R8Operand::A => 7,
+        }
+    }
+
+    pub fn to_byte_from_register(register: Register) -> u8 {
+        match register {
+            Register::B => 0,
+            Register::C => 1,
+            Register::D => 2,
+            Register::E => 3,
+            Register::H => 4,
+            Register::L => 5,
+            Register::A => 7,
+            Register::F => panic!("Attempting to construct R8Operand from F register")
         }
     }
 }
