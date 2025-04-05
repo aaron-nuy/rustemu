@@ -1,6 +1,6 @@
 use crate::console::cpu::decoder;
 use crate::console::cpu::instruction::*;
-use crate::console::memory::*;
+use crate::console::bus::*;
 use crate::console::utils::bit_utils;
 
 #[derive(Default)]
@@ -193,14 +193,14 @@ impl Cpu {
         }
     }
 
-    fn push_to_stack_16b(&mut self, value: u16, memory: &mut Memory) {
+    fn push_to_stack_16b(&mut self, value: u16, bus: &mut Bus) {
         let addr = self.sp.wrapping_sub(2);
-        memory.write_to_16b(addr, value);
+        bus.write_to_16b(addr, value);
         self.sp = addr;
     }
 
-    fn pop_from_stack_16b(&mut self, memory: &Memory) -> u16 {
-        let stack_value = memory.read_from_16b(self.sp);
+    fn pop_from_stack_16b(&mut self, bus: &Bus) -> u16 {
+        let stack_value = bus.read_from_16b(self.sp);
         self.sp = self.sp.wrapping_add(2);
         stack_value
     }
@@ -218,106 +218,106 @@ impl Cpu {
         2
     }
 
-    fn ld_from_hl_ind(&mut self, register_to: Register, memory: &mut Memory) -> u64 {
-        let memory_value = memory.read_from_8b(self.get_hl());
-        self.set_register(register_to, memory_value);
+    fn ld_from_hl_ind(&mut self, register_to: Register, bus: &mut Bus) -> u64 {
+        let bus_value = bus.read_from_8b(self.get_hl());
+        self.set_register(register_to, bus_value);
         2
     }
 
-    fn ld_to_hl_ind(&mut self, register_from: Register, memory: &mut Memory) -> u64 {
+    fn ld_to_hl_ind(&mut self, register_from: Register, bus: &mut Bus) -> u64 {
         let register_from_value = self.get_register(register_from);
-        memory.write_to_8b(self.get_hl(), register_from_value);
+        bus.write_to_8b(self.get_hl(), register_from_value);
         2
     }
 
-    fn ld_to_hl_ind_imm(&mut self, value: u8, memory: &mut Memory) -> u64 {
-        memory.write_to_8b(self.get_hl(), value);
+    fn ld_to_hl_ind_imm(&mut self, value: u8, bus: &mut Bus) -> u64 {
+        bus.write_to_8b(self.get_hl(), value);
         3
     }
 
-    fn ld_from_bc_ind_to_a(&mut self, memory: &mut Memory) -> u64 {
-        let memory_value = memory.read_from_8b(self.get_bc());
-        self.a = memory_value;
+    fn ld_from_bc_ind_to_a(&mut self, bus: &mut Bus) -> u64 {
+        let bus_value = bus.read_from_8b(self.get_bc());
+        self.a = bus_value;
         2
     }
 
-    fn ld_from_de_ind_to_a(&mut self, memory: &mut Memory) -> u64 {
-        let memory_value = memory.read_from_8b(self.get_de());
-        self.a = memory_value;
+    fn ld_from_de_ind_to_a(&mut self, bus: &mut Bus) -> u64 {
+        let bus_value = bus.read_from_8b(self.get_de());
+        self.a = bus_value;
         2
     }
 
-    fn ld_to_bc_ind_from_a(&mut self, memory: &mut Memory) -> u64 {
-        memory.write_to_8b(self.get_bc(), self.a);
+    fn ld_to_bc_ind_from_a(&mut self, bus: &mut Bus) -> u64 {
+        bus.write_to_8b(self.get_bc(), self.a);
         2
     }
 
-    fn ld_to_de_ind_from_a(&mut self, memory: &mut Memory) -> u64 {
-        memory.write_to_8b(self.get_de(), self.a);
+    fn ld_to_de_ind_from_a(&mut self, bus: &mut Bus) -> u64 {
+        bus.write_to_8b(self.get_de(), self.a);
         2
     }
 
-    fn ld_from_imm_ind_to_a(&mut self, imm: u16, memory: &mut Memory) -> u64 {
-        self.a = memory.read_from_8b(imm);
+    fn ld_from_imm_ind_to_a(&mut self, imm: u16, bus: &mut Bus) -> u64 {
+        self.a = bus.read_from_8b(imm);
         4
     }
 
-    fn ld_to_imm_ind_from_a(&mut self, imm: u16, memory: &mut Memory) -> u64 {
-        memory.write_to_8b(imm, self.a);
+    fn ld_to_imm_ind_from_a(&mut self, imm: u16, bus: &mut Bus) -> u64 {
+        bus.write_to_8b(imm, self.a);
         4
     }
 
-    fn ld_to_a_from_c_ind(&mut self, memory: &mut Memory) -> u64 {
+    fn ld_to_a_from_c_ind(&mut self, bus: &mut Bus) -> u64 {
         let addr: u16 = 0xff00 | (self.c as u16);
-        self.a = memory.read_from_8b(addr);
+        self.a = bus.read_from_8b(addr);
         2
     }
 
-    fn ld_from_a_to_c_ind(&mut self, memory: &mut Memory) -> u64 {
+    fn ld_from_a_to_c_ind(&mut self, bus: &mut Bus) -> u64 {
         let addr: u16 = 0xff00 | (self.c as u16);
-        memory.write_to_8b(addr, self.a);
+        bus.write_to_8b(addr, self.a);
         2
     }
 
-    fn ld_from_imm_ind_to_a_8(&mut self, imm: u8, memory: &mut Memory) -> u64 {
+    fn ld_from_imm_ind_to_a_8(&mut self, imm: u8, bus: &mut Bus) -> u64 {
         let addr: u16 = 0xff00 | (imm as u16);
-        self.a = memory.read_from_8b(addr);
+        self.a = bus.read_from_8b(addr);
         3
     }
 
-    fn ld_to_imm_ind_from_a_8(&mut self, imm: u8, memory: &mut Memory) -> u64 {
+    fn ld_to_imm_ind_from_a_8(&mut self, imm: u8, bus: &mut Bus) -> u64 {
         let addr: u16 = 0xff00 | (imm as u16);
-        memory.write_to_8b(addr, self.a);
+        bus.write_to_8b(addr, self.a);
         3
     }
 
-    fn ld_from_hl_ind_dec_to_a(&mut self, memory: &mut Memory) -> u64 {
+    fn ld_from_hl_ind_dec_to_a(&mut self, bus: &mut Bus) -> u64 {
         let mut hl: u16 = self.get_hl();
-        self.a = memory.read_from_8b(hl);
+        self.a = bus.read_from_8b(hl);
         hl = hl.wrapping_sub(1);
         self.set_hl(hl);
         2
     }
 
-    fn ld_to_hl_ind_dec_from_a(&mut self, memory: &mut Memory) -> u64 {
+    fn ld_to_hl_ind_dec_from_a(&mut self, bus: &mut Bus) -> u64 {
         let mut hl: u16 = self.get_hl();
-        memory.write_to_8b(hl, self.a);
+        bus.write_to_8b(hl, self.a);
         hl = hl.wrapping_sub(1);
         self.set_hl(hl);
         2
     }
 
-    fn ld_from_hl_ind_inc_to_a(&mut self, memory: &mut Memory) -> u64 {
+    fn ld_from_hl_ind_inc_to_a(&mut self, bus: &mut Bus) -> u64 {
         let mut hl: u16 = self.get_hl();
-        self.a = memory.read_from_8b(hl);
+        self.a = bus.read_from_8b(hl);
         hl = hl.wrapping_add(1);
         self.set_hl(hl);
         2
     }
 
-    fn ld_to_hl_ind_inc_from_a(&mut self, memory: &mut Memory) -> u64 {
+    fn ld_to_hl_ind_inc_from_a(&mut self, bus: &mut Bus) -> u64 {
         let mut hl: u16 = self.get_hl();
-        memory.write_to_8b(hl, self.a);
+        bus.write_to_8b(hl, self.a);
         hl = hl.wrapping_add(1);
         self.set_hl(hl);
         2
@@ -328,8 +328,8 @@ impl Cpu {
         3
     }
 
-    fn ld_to_imm_ind_from_sp(&mut self, imm_value: u16, memory: &mut Memory) -> u64 {
-        memory.write_to_16b(imm_value, self.sp);
+    fn ld_to_imm_ind_from_sp(&mut self, imm_value: u16, bus: &mut Bus) -> u64 {
+        bus.write_to_16b(imm_value, self.sp);
         5
     }
 
@@ -338,14 +338,14 @@ impl Cpu {
         2
     }
 
-    fn push(&mut self, register_from: Register16, memory: &mut Memory) -> u64 {
+    fn push(&mut self, register_from: Register16, bus: &mut Bus) -> u64 {
         let register_value = self.get_register_16(register_from);
-        self.push_to_stack_16b(register_value, memory);
+        self.push_to_stack_16b(register_value, bus);
         4
     }
 
-    fn pop(&mut self, register: Register16, memory: &mut Memory) -> u64 {
-        let stack_value = self.pop_from_stack_16b(memory);
+    fn pop(&mut self, register: Register16, bus: &mut Bus) -> u64 {
+        let stack_value = self.pop_from_stack_16b(bus);
         self.set_register_16(register, stack_value);
         3
     }
@@ -396,8 +396,8 @@ impl Cpu {
         1
     }
 
-    fn add_hl_ind(&mut self, memory: &mut Memory) -> u64 {
-        let value = memory.read_from_8b(self.get_hl());
+    fn add_hl_ind(&mut self, bus: &mut Bus) -> u64 {
+        let value = bus.read_from_8b(self.get_hl());
         self._add(value);
         2
     }
@@ -413,8 +413,8 @@ impl Cpu {
         1
     }
 
-    fn add_c_hl_ind(&mut self, memory: &mut Memory) -> u64 {
-        let value = memory.read_from_8b(self.get_hl());
+    fn add_c_hl_ind(&mut self, bus: &mut Bus) -> u64 {
+        let value = bus.read_from_8b(self.get_hl());
         self._adc(value);
         2
     }
@@ -457,8 +457,8 @@ impl Cpu {
         1
     }
 
-    fn sub_hl_ind(&mut self, memory: &mut Memory) -> u64 {
-        let value = memory.read_from_8b(self.get_hl());
+    fn sub_hl_ind(&mut self, bus: &mut Bus) -> u64 {
+        let value = bus.read_from_8b(self.get_hl());
         self._sub(value);
         2
     }
@@ -474,8 +474,8 @@ impl Cpu {
         1
     }
 
-    fn sub_c_hl_ind(&mut self, memory: &mut Memory) -> u64 {
-        let value = memory.read_from_8b(self.get_hl());
+    fn sub_c_hl_ind(&mut self, bus: &mut Bus) -> u64 {
+        let value = bus.read_from_8b(self.get_hl());
         self._sbc(value);
         2
     }
@@ -498,8 +498,8 @@ impl Cpu {
         1
     }
 
-    fn cp_hl_ind(&mut self, memory: &mut Memory) -> u64 {
-        let value = memory.read_from_8b(self.get_hl());
+    fn cp_hl_ind(&mut self, bus: &mut Bus) -> u64 {
+        let value = bus.read_from_8b(self.get_hl());
         self._cp(value);
         2
     }
@@ -522,8 +522,8 @@ impl Cpu {
         1
     }
 
-    fn inc_hl_ind(&mut self, memory: &mut Memory) -> u64 {
-        let value = memory.read_from_8b(self.get_hl());
+    fn inc_hl_ind(&mut self, bus: &mut Bus) -> u64 {
+        let value = bus.read_from_8b(self.get_hl());
 
         let (new_value, _) = value.overflowing_add(1);
         let half_carry = (value & 0x0f) + 0b1 > 0x0f;
@@ -531,7 +531,7 @@ impl Cpu {
 
         self.set_flags(current_carry, half_carry, false, new_value == 0);
 
-        memory.write_to_8b(self.get_hl(), new_value);
+        bus.write_to_8b(self.get_hl(), new_value);
         3
     }
 
@@ -548,8 +548,8 @@ impl Cpu {
         1
     }
 
-    fn dec_hl_ind(&mut self, memory: &mut Memory) -> u64 {
-        let value = memory.read_from_8b(self.get_hl());
+    fn dec_hl_ind(&mut self, bus: &mut Bus) -> u64 {
+        let value = bus.read_from_8b(self.get_hl());
 
         let (new_value, _) = value.overflowing_sub(1);
         let half_carry = (value & 0x0f) == 0;
@@ -557,7 +557,7 @@ impl Cpu {
 
         self.set_flags(current_carry, half_carry, true, new_value == 0);
 
-        memory.write_to_8b(self.get_hl(), new_value);
+        bus.write_to_8b(self.get_hl(), new_value);
         3
     }
 
@@ -575,8 +575,8 @@ impl Cpu {
         1
     }
 
-    fn and_hl_ind(&mut self, memory: &mut Memory) -> u64 {
-        let value = memory.read_from_8b(self.get_hl());
+    fn and_hl_ind(&mut self, bus: &mut Bus) -> u64 {
+        let value = bus.read_from_8b(self.get_hl());
         self._and(value);
         2
     }
@@ -600,8 +600,8 @@ impl Cpu {
         1
     }
 
-    fn or_hl_ind(&mut self, memory: &mut Memory) -> u64 {
-        let value = memory.read_from_8b(self.get_hl());
+    fn or_hl_ind(&mut self, bus: &mut Bus) -> u64 {
+        let value = bus.read_from_8b(self.get_hl());
         self._or(value);
         2
     }
@@ -625,8 +625,8 @@ impl Cpu {
         1
     }
 
-    fn xor_hl_ind(&mut self, memory: &mut Memory) -> u64 {
-        let value = memory.read_from_8b(self.get_hl());
+    fn xor_hl_ind(&mut self, bus: &mut Bus) -> u64 {
+        let value = bus.read_from_8b(self.get_hl());
         self._xor(value);
         2
     }
@@ -785,12 +785,12 @@ impl Cpu {
         2
     }
 
-    fn rlc_hl_ind(&mut self, memory: &mut Memory) -> u64 {
-        let register_value = memory.read_from_8b(self.get_hl());
+    fn rlc_hl_ind(&mut self, bus: &mut Bus) -> u64 {
+        let register_value = bus.read_from_8b(self.get_hl());
 
         let new_value = self._rotate(register_value, true, false, false);
 
-        memory.write_to_8b(self.get_hl(), new_value);
+        bus.write_to_8b(self.get_hl(), new_value);
         4
     }
 
@@ -803,12 +803,12 @@ impl Cpu {
         2
     }
 
-    fn rrc_hl_ind(&mut self, memory: &mut Memory) -> u64 {
-        let register_value = memory.read_from_8b(self.get_hl());
+    fn rrc_hl_ind(&mut self, bus: &mut Bus) -> u64 {
+        let register_value = bus.read_from_8b(self.get_hl());
 
         let new_value = self._rotate(register_value, true, true, false);
 
-        memory.write_to_8b(self.get_hl(), new_value);
+        bus.write_to_8b(self.get_hl(), new_value);
         4
     }
 
@@ -830,21 +830,21 @@ impl Cpu {
         2
     }
 
-    fn rr_hl_ind(&mut self, memory: &mut Memory) -> u64 {
-        let register_value = memory.read_from_8b(self.get_hl());
+    fn rr_hl_ind(&mut self, bus: &mut Bus) -> u64 {
+        let register_value = bus.read_from_8b(self.get_hl());
 
         let new_value = self._rotate(register_value, false, true, false);
 
-        memory.write_to_8b(self.get_hl(), new_value);
+        bus.write_to_8b(self.get_hl(), new_value);
         4
     }
 
-    fn rl_hl_ind(&mut self, memory: &mut Memory) -> u64 {
-        let register_value = memory.read_from_8b(self.get_hl());
+    fn rl_hl_ind(&mut self, bus: &mut Bus) -> u64 {
+        let register_value = bus.read_from_8b(self.get_hl());
 
         let new_value = self._rotate(register_value, false, false, false);
 
-        memory.write_to_8b(self.get_hl(), new_value);
+        bus.write_to_8b(self.get_hl(), new_value);
         4
     }
 
@@ -873,12 +873,12 @@ impl Cpu {
         2
     }
 
-    fn sra_hl_ind(&mut self, memory: &mut Memory) -> u64 {
-        let register_value = memory.read_from_8b(self.get_hl());
+    fn sra_hl_ind(&mut self, bus: &mut Bus) -> u64 {
+        let register_value = bus.read_from_8b(self.get_hl());
 
         let new_value = self._sa(register_value, true);
 
-        memory.write_to_8b(self.get_hl(), new_value);
+        bus.write_to_8b(self.get_hl(), new_value);
         4
     }
 
@@ -891,12 +891,12 @@ impl Cpu {
         2
     }
 
-    fn sla_hl_ind(&mut self, memory: &mut Memory) -> u64 {
-        let register_value = memory.read_from_8b(self.get_hl());
+    fn sla_hl_ind(&mut self, bus: &mut Bus) -> u64 {
+        let register_value = bus.read_from_8b(self.get_hl());
 
         let new_value = self._sa(register_value, false);
 
-        memory.write_to_8b(self.get_hl(), new_value);
+        bus.write_to_8b(self.get_hl(), new_value);
         4
     }
 
@@ -921,12 +921,12 @@ impl Cpu {
         2
     }
 
-    fn srl_hl_ind(&mut self, memory: &mut Memory) -> u64 {
-        let register_value = memory.read_from_8b(self.get_hl());
+    fn srl_hl_ind(&mut self, bus: &mut Bus) -> u64 {
+        let register_value = bus.read_from_8b(self.get_hl());
 
         let new_value = self._sl(register_value, true);
 
-        memory.write_to_8b(self.get_hl(), new_value);
+        bus.write_to_8b(self.get_hl(), new_value);
         4
     }
 
@@ -947,12 +947,12 @@ impl Cpu {
         2
     }
 
-    fn swap_hl_ind(&mut self, memory: &mut Memory) -> u64 {
-        let register_value = memory.read_from_8b(self.get_hl());
+    fn swap_hl_ind(&mut self, bus: &mut Bus) -> u64 {
+        let register_value = bus.read_from_8b(self.get_hl());
 
         let new_value = self._swap(register_value);
 
-        memory.write_to_8b(self.get_hl(), new_value);
+        bus.write_to_8b(self.get_hl(), new_value);
         4
     }
 
@@ -970,8 +970,8 @@ impl Cpu {
         2
     }
 
-    fn bit_hl_ind(&mut self, bit_position: u8, memory: &mut Memory) -> u64 {
-        let register_value = memory.read_from_8b(self.get_hl());
+    fn bit_hl_ind(&mut self, bit_position: u8, bus: &mut Bus) -> u64 {
+        let register_value = bus.read_from_8b(self.get_hl());
         self._bit(bit_position, register_value);
         3
     }
@@ -983,10 +983,10 @@ impl Cpu {
         2
     }
 
-    fn set_hl_ind(&mut self, bit_position: u8, memory: &mut Memory) -> u64 {
-        let register_value = memory.read_from_8b(self.get_hl());
+    fn set_hl_ind(&mut self, bit_position: u8, bus: &mut Bus) -> u64 {
+        let register_value = bus.read_from_8b(self.get_hl());
         let new_value = bit_utils::modify_bit(register_value, bit_position, true);
-        memory.write_to_8b(self.get_hl(), new_value);
+        bus.write_to_8b(self.get_hl(), new_value);
         4
     }
 
@@ -997,10 +997,10 @@ impl Cpu {
         2
     }
 
-    fn reset_hl_ind(&mut self, bit_position: u8, memory: &mut Memory) -> u64 {
-        let register_value = memory.read_from_8b(self.get_hl());
+    fn reset_hl_ind(&mut self, bit_position: u8, bus: &mut Bus) -> u64 {
+        let register_value = bus.read_from_8b(self.get_hl());
         let new_value = bit_utils::modify_bit(register_value, bit_position, false);
-        memory.write_to_8b(self.get_hl(), new_value);
+        bus.write_to_8b(self.get_hl(), new_value);
         4
     }
 
@@ -1041,43 +1041,43 @@ impl Cpu {
         }
     }
 
-    fn call(&mut self, addr: u16, memory: &mut Memory) -> u64 {
-        self.push_to_stack_16b(self.pc, memory);
+    fn call(&mut self, addr: u16, bus: &mut Bus) -> u64 {
+        self.push_to_stack_16b(self.pc, bus);
         self.pc = addr;
         6
     }
 
-    fn call_cc(&mut self, cond: FlowCondition, addr: u16, memory: &mut Memory) -> u64 {
+    fn call_cc(&mut self, cond: FlowCondition, addr: u16, bus: &mut Bus) -> u64 {
         if self.evaluate_flow_condition(cond) {
-            self.call(addr, memory);
+            self.call(addr, bus);
             6
         } else {
             3
         }
     }
 
-    fn ret(&mut self, memory: &mut Memory) -> u64 {
-        self.pc = self.pop_from_stack_16b(memory);
+    fn ret(&mut self, bus: &mut Bus) -> u64 {
+        self.pc = self.pop_from_stack_16b(bus);
         4
     }
 
-    fn ret_cc(&mut self, cond: FlowCondition, memory: &mut Memory) -> u64 {
+    fn ret_cc(&mut self, cond: FlowCondition, bus: &mut Bus) -> u64 {
         if self.evaluate_flow_condition(cond) {
-            self.ret(memory);
+            self.ret(bus);
             5
         } else {
             2
         }
     }
 
-    fn ret_i(&mut self, memory: &mut Memory) -> u64 {
-        self.ret(memory);
+    fn ret_i(&mut self, bus: &mut Bus) -> u64 {
+        self.ret(bus);
         self.ei();
         4
     }
 
-    fn rst(&mut self, addr: u8, memory: &mut Memory) -> u64 {
-        self.push_to_stack_16b(self.pc, memory);
+    fn rst(&mut self, addr: u8, bus: &mut Bus) -> u64 {
+        self.push_to_stack_16b(self.pc, bus);
         self.pc = (addr as u16) * 8;
         4
     }
@@ -1102,23 +1102,23 @@ impl Cpu {
         1
     }
 
-    fn decode_instruction_at_pc(&self, memory: &Memory) -> (Instruction, u16) {
-        let first_byte = memory.read_from_8b(self.pc);
-        let second_byte = memory.read_from_8b(self.pc.wrapping_add(1));
-        let third_byte = memory.read_from_8b(self.pc.wrapping_add(2));
+    fn decode_instruction_at_pc(&self, bus: &Bus) -> (Instruction, u16) {
+        let first_byte = bus.read_from_8b(self.pc);
+        let second_byte = bus.read_from_8b(self.pc.wrapping_add(1));
+        let third_byte = bus.read_from_8b(self.pc.wrapping_add(2));
         decoder::decode(first_byte, second_byte, third_byte)
     }
 
-    pub fn clock(&mut self, memory: &mut Memory) {
+    pub fn clock(&mut self, bus: &mut Bus) {
         if self.halted {
             return;
         }
 
-        let (instruction, size) = self.decode_instruction_at_pc(memory);
+        let (instruction, size) = self.decode_instruction_at_pc(bus);
 
         self.step(size);
 
-        let cycles = self.execute(instruction, memory);
+        let cycles = self.execute(instruction, bus);
 
         self.clock = self.clock.wrapping_add(cycles);
     }
@@ -1127,60 +1127,60 @@ impl Cpu {
         self.pc = self.pc.wrapping_add(instruction_size);
     }
 
-    fn execute(&mut self, instruction: Instruction, memory: &mut Memory) -> u64 {
+    fn execute(&mut self, instruction: Instruction, bus: &mut Bus) -> u64 {
         match instruction {
             Instruction::LD(register_to, register_from) => self.ld(register_to, register_from),
             Instruction::LDImm(register_to, imm) => self.ld_imm(register_to, imm),
-            Instruction::LDFromHLInd(register_to) => self.ld_from_hl_ind(register_to, memory),
-            Instruction::LDToHLInd(register_from) => self.ld_to_hl_ind(register_from, memory),
-            Instruction::LDToHlIndImm(imm) => self.ld_to_hl_ind_imm(imm, memory),
-            Instruction::LDFromBCIndToA() => self.ld_from_bc_ind_to_a(memory),
-            Instruction::LDFromDEIndToA() => self.ld_from_de_ind_to_a(memory),
-            Instruction::LDToBCIndFromA() => self.ld_to_bc_ind_from_a(memory),
-            Instruction::LDToDEIndFromA() => self.ld_to_de_ind_from_a(memory),
-            Instruction::LDFromImmIndToA(imm) => self.ld_from_imm_ind_to_a(imm, memory),
-            Instruction::LDToImmIndFromA(imm) => self.ld_to_imm_ind_from_a(imm, memory),
-            Instruction::LDToAFromCInd() => self.ld_to_a_from_c_ind(memory),
-            Instruction::LDFromAToCInd() => self.ld_from_a_to_c_ind(memory),
-            Instruction::LDFromImmIndToA8(imm) => self.ld_from_imm_ind_to_a_8(imm, memory),
-            Instruction::LDToImmIndFromA8(imm) => self.ld_to_imm_ind_from_a_8(imm, memory),
-            Instruction::LDFromHLIndDecToA() => self.ld_from_hl_ind_dec_to_a(memory),
-            Instruction::LDToHLIndDecFromA() => self.ld_to_hl_ind_dec_from_a(memory),
-            Instruction::LDFromHLIndIncToA() => self.ld_from_hl_ind_inc_to_a(memory),
-            Instruction::LDToHLIndIncFromA() => self.ld_to_hl_ind_inc_from_a(memory),
+            Instruction::LDFromHLInd(register_to) => self.ld_from_hl_ind(register_to, bus),
+            Instruction::LDToHLInd(register_from) => self.ld_to_hl_ind(register_from, bus),
+            Instruction::LDToHlIndImm(imm) => self.ld_to_hl_ind_imm(imm, bus),
+            Instruction::LDFromBCIndToA() => self.ld_from_bc_ind_to_a(bus),
+            Instruction::LDFromDEIndToA() => self.ld_from_de_ind_to_a(bus),
+            Instruction::LDToBCIndFromA() => self.ld_to_bc_ind_from_a(bus),
+            Instruction::LDToDEIndFromA() => self.ld_to_de_ind_from_a(bus),
+            Instruction::LDFromImmIndToA(imm) => self.ld_from_imm_ind_to_a(imm, bus),
+            Instruction::LDToImmIndFromA(imm) => self.ld_to_imm_ind_from_a(imm, bus),
+            Instruction::LDToAFromCInd() => self.ld_to_a_from_c_ind(bus),
+            Instruction::LDFromAToCInd() => self.ld_from_a_to_c_ind(bus),
+            Instruction::LDFromImmIndToA8(imm) => self.ld_from_imm_ind_to_a_8(imm, bus),
+            Instruction::LDToImmIndFromA8(imm) => self.ld_to_imm_ind_from_a_8(imm, bus),
+            Instruction::LDFromHLIndDecToA() => self.ld_from_hl_ind_dec_to_a(bus),
+            Instruction::LDToHLIndDecFromA() => self.ld_to_hl_ind_dec_from_a(bus),
+            Instruction::LDFromHLIndIncToA() => self.ld_from_hl_ind_inc_to_a(bus),
+            Instruction::LDToHLIndIncFromA() => self.ld_to_hl_ind_inc_from_a(bus),
             Instruction::LDImm16(register_to, imm) => self.ld_imm_16(register_to, imm),
-            Instruction::LDToImmIndFromSP(imm) => self.ld_to_imm_ind_from_sp(imm, memory),
+            Instruction::LDToImmIndFromSP(imm) => self.ld_to_imm_ind_from_sp(imm, bus),
             Instruction::LDSPFromHL() => self.ld_sp_from_hl(),
-            Instruction::PUSH(register_from) => self.push(register_from, memory),
-            Instruction::POP(register_from) => self.pop(register_from, memory),
+            Instruction::PUSH(register_from) => self.push(register_from, bus),
+            Instruction::POP(register_from) => self.pop(register_from, bus),
             Instruction::LDHLFromAdjustedSP(imm) => self.ld_hl_from_adjusted_sp(imm),
             Instruction::ADD(register) => self.add(register),
-            Instruction::ADDHLInd() => self.add_hl_ind(memory),
+            Instruction::ADDHLInd() => self.add_hl_ind(bus),
             Instruction::ADDImm(imm) => self.add_imm(imm),
             Instruction::ADDC(register) => self.add_c(register),
-            Instruction::ADDCHLInd() => self.add_c_hl_ind(memory),
+            Instruction::ADDCHLInd() => self.add_c_hl_ind(bus),
             Instruction::ADDCImm(imm) => self.add_c_imm(imm),
             Instruction::SUB(register) => self.sub(register),
-            Instruction::SUBHLInd() => self.sub_hl_ind(memory),
+            Instruction::SUBHLInd() => self.sub_hl_ind(bus),
             Instruction::SUBImm(imm) => self.sub_imm(imm),
             Instruction::SUBC(register) => self.sub_c(register),
-            Instruction::SUBCHLInd() => self.sub_c_hl_ind(memory),
+            Instruction::SUBCHLInd() => self.sub_c_hl_ind(bus),
             Instruction::SUBCImm(imm) => self.sub_c_imm(imm),
             Instruction::CP(register) => self.cp(register),
-            Instruction::CPHLInd() => self.cp_hl_ind(memory),
+            Instruction::CPHLInd() => self.cp_hl_ind(bus),
             Instruction::CPImm(imm) => self.cp_imm(imm),
             Instruction::INC(register) => self.inc(register),
-            Instruction::INCHLInd() => self.inc_hl_ind(memory),
+            Instruction::INCHLInd() => self.inc_hl_ind(bus),
             Instruction::DEC(register) => self.dec(register),
-            Instruction::DECHLInd() => self.dec_hl_ind(memory),
+            Instruction::DECHLInd() => self.dec_hl_ind(bus),
             Instruction::AND(register) => self.and(register),
-            Instruction::ANDHLInd() => self.and_hl_ind(memory),
+            Instruction::ANDHLInd() => self.and_hl_ind(bus),
             Instruction::ANDImm(imm) => self.and_imm(imm),
             Instruction::OR(register) => self.or(register),
-            Instruction::ORHLInd() => self.or_hl_ind(memory),
+            Instruction::ORHLInd() => self.or_hl_ind(bus),
             Instruction::ORImm(imm) => self.or_imm(imm),
             Instruction::XOR(register) => self.xor(register),
-            Instruction::XORHLInd() => self.xor_hl_ind(memory),
+            Instruction::XORHLInd() => self.xor_hl_ind(bus),
             Instruction::XORImm(imm) => self.xor_imm(imm),
             Instruction::CCF() => self.ccf(),
             Instruction::SCF() => self.scf(),
@@ -1196,38 +1196,38 @@ impl Cpu {
             Instruction::RLA() => self.rla(),
             Instruction::RLCR(register) => self.rlcr(register),
             Instruction::RRCR(register) => self.rrcr(register),
-            Instruction::RLCHLInd() => self.rlc_hl_ind(memory),
-            Instruction::RRCHLInd() => self.rrc_hl_ind(memory),
+            Instruction::RLCHLInd() => self.rlc_hl_ind(bus),
+            Instruction::RRCHLInd() => self.rrc_hl_ind(bus),
             Instruction::RLR(register) => self.rlr(register),
             Instruction::RRR(register) => self.rrr(register),
-            Instruction::RLHLInd() => self.rl_hl_ind(memory),
-            Instruction::RRHLInd() => self.rr_hl_ind(memory),
+            Instruction::RLHLInd() => self.rl_hl_ind(bus),
+            Instruction::RRHLInd() => self.rr_hl_ind(bus),
             Instruction::SRAR(register) => self.srar(register),
-            Instruction::SRAHLInd() => self.sra_hl_ind(memory),
+            Instruction::SRAHLInd() => self.sra_hl_ind(bus),
             Instruction::SLAR(register) => self.slar(register),
-            Instruction::SLAHLInd() => self.sla_hl_ind(memory),
+            Instruction::SLAHLInd() => self.sla_hl_ind(bus),
             Instruction::SRLR(register) => self.srlr(register),
-            Instruction::SRLHLInd() => self.srl_hl_ind(memory),
+            Instruction::SRLHLInd() => self.srl_hl_ind(bus),
             Instruction::SWAPR(register) => self.swapr(register),
-            Instruction::SWAPHLInd() => self.swap_hl_ind(memory),
+            Instruction::SWAPHLInd() => self.swap_hl_ind(bus),
             Instruction::BITR(bit, register) => self.bitr(bit, register),
-            Instruction::BITHLInd(bit) => self.bit_hl_ind(bit, memory),
+            Instruction::BITHLInd(bit) => self.bit_hl_ind(bit, bus),
             Instruction::SETR(bit, register) => self.setr(bit, register),
-            Instruction::SETHLInd(bit) => self.set_hl_ind(bit, memory),
+            Instruction::SETHLInd(bit) => self.set_hl_ind(bit, bus),
             Instruction::RESETR(bit, register) => self.resetr(bit, register),
-            Instruction::RESETHLInd(bit) => self.reset_hl_ind(bit, memory),
+            Instruction::RESETHLInd(bit) => self.reset_hl_ind(bit, bus),
             Instruction::NOP() => self.nop(),
             Instruction::JP(addr) => self.jp(addr),
             Instruction::JPHL() => self.jp_hl(),
             Instruction::JPCC(cond, addr) => self.jp_cc(cond, addr),
             Instruction::JR(imm) => self.jr(imm),
             Instruction::JRCC(cond, imm) => self.jr_cc(cond, imm),
-            Instruction::CALL(addr) => self.call(addr, memory),
-            Instruction::CALLCC(cond, addr) => self.call_cc(cond, addr, memory),
-            Instruction::RET() => self.ret(memory),
-            Instruction::RETCC(cond) => self.ret_cc(cond, memory),
-            Instruction::RETI() => self.ret_i(memory),
-            Instruction::RST(addr) => self.rst(addr, memory),
+            Instruction::CALL(addr) => self.call(addr, bus),
+            Instruction::CALLCC(cond, addr) => self.call_cc(cond, addr, bus),
+            Instruction::RET() => self.ret(bus),
+            Instruction::RETCC(cond) => self.ret_cc(cond, bus),
+            Instruction::RETI() => self.ret_i(bus),
+            Instruction::RST(addr) => self.rst(addr, bus),
             Instruction::HALT() => self.halt(),
             Instruction::STOP() => self.stop(),
             Instruction::DI() => self.di(),
@@ -1241,16 +1241,16 @@ mod tests {
     use crate::console::cpu::cpu::*;
     use crate::console::cpu::instruction::R8Operand;
 
-    fn execute_cb_instruction(cpu: &mut Cpu, memory: &mut Memory, offset: &mut u16, subopcode: u8) {
-        memory.write_to_8b(*offset, 0xcb);
-        memory.write_to_8b(*offset + 1, subopcode);
+    fn execute_cb_instruction(cpu: &mut Cpu, bus: &mut Bus, offset: &mut u16, subopcode: u8) {
+        bus.write_to_8b(*offset, 0xcb);
+        bus.write_to_8b(*offset + 1, subopcode);
         *offset += 2;
-        cpu.clock(memory);
+        cpu.clock(bus);
     }
 
-    fn preload_hl(memory: &mut Memory, cpu: &Cpu, value: u8) {
+    fn preload_hl(bus: &mut Bus, cpu: &Cpu, value: u8) {
         let hl_addr = cpu.get_register_16(Register16::HL);
-        memory.write_to_8b(hl_addr, value);
+        bus.write_to_8b(hl_addr, value);
     }
 
     macro_rules! assert_reg {
@@ -1266,11 +1266,11 @@ mod tests {
     }
 
     macro_rules! assert_mem {
-        ($memory:expr, $addr:expr, $expected:expr) => {
+        ($bus:expr, $addr:expr, $expected:expr) => {
             assert_eq!(
-                $memory.read_from_8b($addr),
+                $bus.read_from_8b($addr),
                 $expected,
-                "Memory at {:#04X} expected to be {:#04X}",
+                "memory at {:#04X} expected to be {:#04X}",
                 $addr,
                 $expected
             )
@@ -1280,12 +1280,12 @@ mod tests {
     #[test]
     fn test_cb_set_operations() {
         let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
+        let mut bus = Bus::new();
         let mut offset: u16 = 0;
 
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b11_001_000 | R8Operand::to_byte(R8Operand::E),
         );
@@ -1293,7 +1293,7 @@ mod tests {
 
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b11_000_000 | R8Operand::to_byte(R8Operand::D),
         );
@@ -1301,21 +1301,21 @@ mod tests {
 
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b11_011_000 | R8Operand::to_byte(R8Operand::A),
         );
         assert_reg!(cpu, Register::A, 0b0000_1000);
 
         let hl_addr = cpu.get_register_16(Register16::HL);
-        preload_hl(&mut memory, &cpu, 0xcb);
+        preload_hl(&mut bus, &cpu, 0xcb);
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b11_010_000 | R8Operand::to_byte(R8Operand::HLInd),
         );
-        assert_mem!(memory, hl_addr, 0xcb | 0b0000_0100);
+        assert_mem!(bus, hl_addr, 0xcb | 0b0000_0100);
 
         // Ensure other registers remain unchanged.
         assert_reg!(cpu, Register::A, 0b0000_1000);
@@ -1326,46 +1326,46 @@ mod tests {
     #[test]
     fn test_cb_res_operations() {
         let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
+        let mut bus = Bus::new();
         let mut offset: u16 = 0;
 
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b11_001_000 | R8Operand::to_byte(R8Operand::E),
         );
         assert_reg!(cpu, Register::E, 0b0000_0010);
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b10_001_000 | R8Operand::to_byte(R8Operand::E),
         );
         assert_reg!(cpu, Register::E, 0);
 
         let hl_addr = cpu.get_register_16(Register16::HL);
-        preload_hl(&mut memory, &cpu, 0xcb);
+        preload_hl(&mut bus, &cpu, 0xcb);
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b10_011_000 | R8Operand::to_byte(R8Operand::HLInd),
         );
-        assert_mem!(memory, hl_addr, 0xc3);
+        assert_mem!(bus, hl_addr, 0xc3);
     }
 
     #[test]
     fn test_cb_bit_operations() {
         let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
+        let mut bus = Bus::new();
         let mut offset: u16 = 0;
 
         cpu.set_register(Register::C, 0b0010_0000);
 
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b01_001_000 | R8Operand::to_byte(R8Operand::C),
         );
@@ -1376,7 +1376,7 @@ mod tests {
 
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b01_101_000 | R8Operand::to_byte(R8Operand::C),
         );
@@ -1385,10 +1385,10 @@ mod tests {
             "BIT 5 in C should reset the zero flag"
         );
 
-        preload_hl(&mut memory, &cpu, 0b0000_1000);
+        preload_hl(&mut bus, &cpu, 0b0000_1000);
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b01_011_000 | R8Operand::to_byte(R8Operand::HLInd),
         );
@@ -1401,39 +1401,39 @@ mod tests {
     #[test]
     fn test_cb_swap_operations() {
         let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
+        let mut bus = Bus::new();
         let mut offset: u16 = 0;
 
         cpu.set_register(Register::E, 0b1111_0000);
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b00_110_000 | R8Operand::to_byte(R8Operand::E),
         );
         assert_reg!(cpu, Register::E, 0b0000_1111);
 
         let hl_addr = cpu.get_register_16(Register16::HL);
-        preload_hl(&mut memory, &cpu, 0xcb);
+        preload_hl(&mut bus, &cpu, 0xcb);
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b00_110_000 | R8Operand::to_byte(R8Operand::HLInd),
         );
-        assert_mem!(memory, hl_addr, 0xbc);
+        assert_mem!(bus, hl_addr, 0xbc);
     }
 
     #[test]
     fn test_cb_srl_operations() {
         let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
+        let mut bus = Bus::new();
         let mut offset: u16 = 0;
 
         cpu.set_register(Register::B, 0b1111_0000);
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b00_111_000 | R8Operand::to_byte(R8Operand::B),
         );
@@ -1446,56 +1446,56 @@ mod tests {
         );
 
         let hl_addr = cpu.get_register_16(Register16::HL);
-        preload_hl(&mut memory, &cpu, 0b1100_1011);
+        preload_hl(&mut bus, &cpu, 0b1100_1011);
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b00_111_000 | R8Operand::to_byte(R8Operand::HLInd),
         );
-        assert_mem!(memory, hl_addr, 0b0110_0101);
+        assert_mem!(bus, hl_addr, 0b0110_0101);
         assert!(cpu.get_flag(Flag::Carry), "SRL [HL] should set the carry flag");
     }
 
     #[test]
     fn test_cb_rrc_operations() {
         let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
+        let mut bus = Bus::new();
         let mut offset: u16 = 0;
 
         cpu.set_register(Register::E, 0b1111_0000);
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b00_001_000 | R8Operand::to_byte(R8Operand::E),
         );
         assert_reg!(cpu, Register::E, 0b0111_1000);
         assert!(!cpu.get_flag(Flag::Carry), "RRC on E should not set the carry flag");
 
-        // Test RRC on memory pointed by HL.
+        // Test RRC on bus pointed by HL.
         let hl_addr = cpu.get_register_16(Register16::HL);
-        preload_hl(&mut memory, &cpu, 0b1110_0101);
+        preload_hl(&mut bus, &cpu, 0b1110_0101);
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b00_001_000 | R8Operand::to_byte(R8Operand::HLInd),
         );
-        assert_mem!(memory, hl_addr, 0b1111_0010);
+        assert_mem!(bus, hl_addr, 0b1111_0010);
         assert!(cpu.get_flag(Flag::Carry), "RRC [HL] should set the carry flag");
     }
 
     #[test]
     fn test_cb_rlc_operations() {
         let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
+        let mut bus = Bus::new();
         let mut offset: u16 = 0;
 
         cpu.set_register(Register::A, 0b0000_1111);
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b00_000_000 | R8Operand::to_byte(R8Operand::A),
         );
@@ -1503,27 +1503,27 @@ mod tests {
         assert!(!cpu.get_flag(Flag::Carry), "RLC on A should not set the carry flag");
 
         let hl_addr = cpu.get_register_16(Register16::HL);
-        preload_hl(&mut memory, &cpu, 0b0010_1111);
+        preload_hl(&mut bus, &cpu, 0b0010_1111);
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b00_000_000 | R8Operand::to_byte(R8Operand::HLInd),
         );
-        assert_mem!(memory, hl_addr, 0b0101_1110);
+        assert_mem!(bus, hl_addr, 0b0101_1110);
         assert!(!cpu.get_flag(Flag::Carry), "RLC [HL] should not set the carry flag");
     }
 
     #[test]
     fn test_cb_sra_operations() {
         let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
+        let mut bus = Bus::new();
         let mut offset: u16 = 0;
 
         cpu.set_register(Register::D, 0b1111_0000);
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b00_101_000 | R8Operand::to_byte(R8Operand::D),
         );
@@ -1532,27 +1532,27 @@ mod tests {
         assert_eq!(cpu.get_flag(Flag::Carry), original_lsb, "SRA D carry flag mismatch");
 
         let hl_addr = cpu.get_register_16(Register16::HL);
-        preload_hl(&mut memory, &cpu, 0b1110_0101);
+        preload_hl(&mut bus, &cpu, 0b1110_0101);
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b00_101_000 | R8Operand::to_byte(R8Operand::HLInd),
         );
-        assert_mem!(memory, hl_addr, 0b1111_0010);
+        assert_mem!(bus, hl_addr, 0b1111_0010);
         assert!(cpu.get_flag(Flag::Carry), "SRA [HL] should set the carry flag");
     }
 
     #[test]
     fn test_cb_sla_operations() {
         let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
+        let mut bus = Bus::new();
         let mut offset: u16 = 0;
 
         cpu.set_register(Register::E, 0b1111_0000);
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b00_100_000 | R8Operand::to_byte(R8Operand::E),
         );
@@ -1561,27 +1561,27 @@ mod tests {
         assert_eq!(cpu.get_flag(Flag::Carry), original_msb, "SLA E carry flag mismatch");
 
         let hl_addr = cpu.get_register_16(Register16::HL);
-        preload_hl(&mut memory, &cpu, 0b0010_1011);
+        preload_hl(&mut bus, &cpu, 0b0010_1011);
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b00_100_000 | R8Operand::to_byte(R8Operand::HLInd),
         );
-        assert_mem!(memory, hl_addr, 0b0101_0110);
+        assert_mem!(bus, hl_addr, 0b0101_0110);
         assert!(!cpu.get_flag(Flag::Carry), "SLA [HL] should not set the carry flag");
     }
 
     #[test]
     fn test_cb_rr_operations() {
         let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
+        let mut bus = Bus::new();
         let mut offset: u16 = 0;
 
         cpu.set_register(Register::E, 0b1111_0000);
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b00_011_000 | R8Operand::to_byte(R8Operand::E),
         );
@@ -1593,27 +1593,27 @@ mod tests {
         );
 
         let hl_addr = cpu.get_register_16(Register16::HL);
-        preload_hl(&mut memory, &cpu, 0b1110_0101);
+        preload_hl(&mut bus, &cpu, 0b1110_0101);
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b00_011_000 | R8Operand::to_byte(R8Operand::HLInd),
         );
-        assert_mem!(memory, hl_addr, 0b0111_0010);
+        assert_mem!(bus, hl_addr, 0b0111_0010);
         assert!(cpu.get_flag(Flag::Carry), "RR [HL] should set the carry flag");
     }
 
     #[test]
     fn test_cb_rl_operations() {
         let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
+        let mut bus = Bus::new();
         let mut offset: u16 = 0;
 
         cpu.set_register(Register::A, 0b0000_1111);
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b00_010_000 | R8Operand::to_byte(R8Operand::A),
         );
@@ -1625,14 +1625,14 @@ mod tests {
         );
 
         let hl_addr = cpu.get_register_16(Register16::HL);
-        preload_hl(&mut memory, &cpu, 0b0010_1111);
+        preload_hl(&mut bus, &cpu, 0b0010_1111);
         execute_cb_instruction(
             &mut cpu,
-            &mut memory,
+            &mut bus,
             &mut offset,
             0b00_010_000 | R8Operand::to_byte(R8Operand::HLInd),
         );
-        assert_mem!(memory, hl_addr, 0b0101_1110);
+        assert_mem!(bus, hl_addr, 0b0101_1110);
         assert_eq!(
             cpu.get_flag(Flag::Carry),
             false,

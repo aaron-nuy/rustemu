@@ -1,8 +1,8 @@
-pub struct Memory {
+pub struct Bus {
     ram: Box<[u8; crate::console::constants::MEMORY_SIZE]>,
 }
 
-impl Memory {
+impl Bus {
     pub fn write_to_8b(&mut self, address: u16, value: u8) {
         self.ram[address as usize] = value;
     }

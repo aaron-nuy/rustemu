@@ -1,5 +1,5 @@
 mod cartridge;
-mod memory;
+mod bus;
 mod display;
 mod audio;
 mod input;
