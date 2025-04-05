@@ -1,6 +1,8 @@
 pub use crate::console::cpu::register::*;
 pub use crate::console::cpu::instruction_operands::*;
 
+// TODO: Take InstructionOperands as parameter instead of registers
+// TODO: Move decoder/encoder code here
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Instruction {
     LD(Register, Register),
