@@ -1,4 +1,4 @@
-use super::register::Register;
+use super::register::{Register, Register16};
 
 #[derive(Clone)]
 pub enum R8Operand {
@@ -79,6 +79,16 @@ impl R16Operand {
             R16Operand::DE => 1,
             R16Operand::HL => 2,
             R16Operand::SP => 3,
+        }
+    }
+
+    pub fn to_byte_from_register(register_16: Register16) -> u8 {
+        match register_16 {
+            Register16::BC => 0,
+            Register16::DE => 1,
+            Register16::HL => 2,
+            Register16::SP => 3,
+            Register16::AF | Register16::PC => panic!("Attempting to construct R16Operand from unsupported register")
         }
     }
 }
