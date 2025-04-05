@@ -546,9 +546,9 @@ fn decode_generic_block_3(opcode: u8, imm_8: u8, imm_16: u16) -> (Instruction, u
 mod tests {
     use crate::console::cpu::{decoder::*, register};
 
-    fn construct_cb_table_1_inst(instruction: Instruction) -> u8 {
+    fn encode_cb_table_1_inst(instruction: Instruction) -> u8 {
         use Instruction::*;
-        let hl_ind_r8_op_byte = R8Operand::to_byte(R8Operand::HLInd);
+        let hl_ind_r8_op_byte = R8Operand::HLInd.to_byte();
 
         match instruction {
             RLCR(register) => {
@@ -595,9 +595,9 @@ mod tests {
         }
     }
 
-    fn construct_cb_table_2_inst(instruction: Instruction) -> u8 {
+    fn encode_cb_table_2_inst(instruction: Instruction) -> u8 {
         use Instruction::*;
-        let hl_ind_r8_op_byte = R8Operand::to_byte(R8Operand::HLInd);
+        let hl_ind_r8_op_byte = R8Operand::HLInd.to_byte();
 
         match instruction {
             BITR(bit_index, register) => {
@@ -628,6 +628,55 @@ mod tests {
                 (0b1100_0000 | adjusted_bit_index | hl_ind_r8_op_byte)
             }
             _ => panic!("Not CB Table 2 instruction"),
+        }
+    }
+
+    fn encode_block_2_inst(instruction: Instruction) -> u8 {
+        use Instruction::*;
+        let hl_ind_r8_op_byte = R8Operand::HLInd.to_byte();
+
+        match instruction {
+            ADD(register) => {
+                let operand = R8Operand::to_byte_from_register(register);
+                (0b1000_0000 | operand)
+            }
+            ADDC(register) => {
+                let operand = R8Operand::to_byte_from_register(register);
+                (0b1000_1000 | operand)
+            }
+            SUB(register) => {
+                let operand = R8Operand::to_byte_from_register(register);
+                (0b1001_0000 | operand)
+            }
+            SUBC(register) => {
+                let operand = R8Operand::to_byte_from_register(register);
+                (0b1001_1000 | operand)
+            }
+            AND(register) => {
+                let operand = R8Operand::to_byte_from_register(register);
+                (0b1010_0000 | operand)
+            }
+            XOR(register) => {
+                let operand = R8Operand::to_byte_from_register(register);
+                (0b1010_1000 | operand)
+            }
+            OR(register) => {
+                let operand = R8Operand::to_byte_from_register(register);
+                (0b1011_0000 | operand)
+            }
+            CP(register) => {
+                let operand = R8Operand::to_byte_from_register(register);
+                (0b1011_1000 | operand)
+            }
+            ADDHLInd() => (0b1000_0000 | hl_ind_r8_op_byte),
+            ADDCHLInd() => (0b1000_1000| hl_ind_r8_op_byte),
+            SUBHLInd() => (0b1001_0000 | hl_ind_r8_op_byte),
+            SUBCHLInd() => (0b1001_1000 | hl_ind_r8_op_byte),
+            ANDHLInd() => (0b1010_0000 | hl_ind_r8_op_byte),
+            XORHLInd() => (0b1010_1000 | hl_ind_r8_op_byte),
+            ORHLInd() => (0b1011_0000 | hl_ind_r8_op_byte),
+            CPHLInd() => (0b1011_1000 | hl_ind_r8_op_byte),
+            _ => panic!("Not Block 2 instruction"),
         }
     }
 
@@ -680,7 +729,7 @@ mod tests {
             ];
 
             for instruction in instructions {
-                let instruction_byte = construct_cb_table_1_inst(instruction.clone());
+                let instruction_byte = encode_cb_table_1_inst(instruction.clone());
                 assert_decode(instruction, expected_size, byte1, instruction_byte, 0);
             }
         }
@@ -697,7 +746,7 @@ mod tests {
         ];
 
         for instruction in instructions {
-            let instruction_byte = construct_cb_table_1_inst(instruction.clone());
+            let instruction_byte = encode_cb_table_1_inst(instruction.clone());
             assert_decode(instruction, expected_size, byte1, instruction_byte, 0);
         }
     }
@@ -720,20 +769,79 @@ mod tests {
 
         for bit_index in 0..=7 {
             for reg in &operands_r8 {
-                let instructions = [BITR(bit_index, reg.clone()), SETR(bit_index, reg.clone()), RESETR(bit_index, reg.clone())];
+                let instructions = [
+                    BITR(bit_index, reg.clone()),
+                    SETR(bit_index, reg.clone()),
+                    RESETR(bit_index, reg.clone()),
+                ];
 
                 for instruction in instructions {
-                    let instruction_byte = construct_cb_table_2_inst(instruction.clone());
+                    let instruction_byte = encode_cb_table_2_inst(instruction.clone());
                     assert_decode(instruction, expected_size, byte1, instruction_byte, 0);
                 }
             }
 
-            let instructions = [BITHLInd(bit_index), SETHLInd(bit_index), RESETHLInd(bit_index)];
+            let instructions = [
+                BITHLInd(bit_index),
+                SETHLInd(bit_index),
+                RESETHLInd(bit_index),
+            ];
 
             for instruction in instructions {
-                let instruction_byte = construct_cb_table_2_inst(instruction.clone());
+                let instruction_byte = encode_cb_table_2_inst(instruction.clone());
                 assert_decode(instruction, expected_size, byte1, instruction_byte, 0);
             }
         }
     }
+
+    #[test]
+    fn test_decode_block_2() {
+        use Instruction::*;
+        let expected_size = 1;
+
+        let operands_r8 = [
+            Register::A,
+            Register::B,
+            Register::C,
+            Register::D,
+            Register::E,
+            Register::H,
+            Register::L,
+        ];
+
+        for reg in operands_r8 {
+            let instructions = [
+                ADD(reg.clone()),
+                ADDC(reg.clone()),
+                SUB(reg.clone()),
+                SUB(reg.clone()),
+                AND(reg.clone()),
+                XOR(reg.clone()),
+                OR(reg.clone()),
+                CP(reg.clone()),
+            ];
+
+            for instruction in instructions {
+                let instruction_byte = encode_block_2_inst(instruction.clone());
+                assert_decode(instruction, expected_size, instruction_byte, 0, 0);
+            }
+        }
+
+        let instructions = [
+            ADDHLInd(),
+            ADDCHLInd(),
+            SUBHLInd(),
+            SUBCHLInd(),
+            ANDHLInd(),
+            XORHLInd(),
+            ORHLInd(),
+            CPHLInd(), 
+        ];
+
+        for instruction in instructions {
+            let instruction_byte = encode_block_2_inst(instruction.clone());
+            assert_decode(instruction, expected_size, instruction_byte, 0, 0);
+        }
+    }
+
 }

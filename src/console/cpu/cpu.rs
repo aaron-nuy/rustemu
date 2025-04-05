@@ -1287,7 +1287,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b11_001_000 | R8Operand::to_byte(R8Operand::E),
+            0b11_001_000 | R8Operand::E.to_byte(),
         );
         assert_reg!(cpu, Register::E, 0b0000_0010);
 
@@ -1295,7 +1295,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b11_000_000 | R8Operand::to_byte(R8Operand::D),
+            0b11_000_000 | R8Operand::D.to_byte(),
         );
         assert_reg!(cpu, Register::D, 0b0000_0001);
 
@@ -1303,7 +1303,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b11_011_000 | R8Operand::to_byte(R8Operand::A),
+            0b11_011_000 | R8Operand::A.to_byte(),
         );
         assert_reg!(cpu, Register::A, 0b0000_1000);
 
@@ -1313,7 +1313,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b11_010_000 | R8Operand::to_byte(R8Operand::HLInd),
+            0b11_010_000 | R8Operand::HLInd.to_byte(),
         );
         assert_mem!(bus, hl_addr, 0xcb | 0b0000_0100);
 
@@ -1333,14 +1333,14 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b11_001_000 | R8Operand::to_byte(R8Operand::E),
+            0b11_001_000 | R8Operand::E.to_byte(),
         );
         assert_reg!(cpu, Register::E, 0b0000_0010);
         execute_cb_instruction(
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b10_001_000 | R8Operand::to_byte(R8Operand::E),
+            0b10_001_000 | R8Operand::E.to_byte(),
         );
         assert_reg!(cpu, Register::E, 0);
 
@@ -1350,7 +1350,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b10_011_000 | R8Operand::to_byte(R8Operand::HLInd),
+            0b10_011_000 | R8Operand::HLInd.to_byte(),
         );
         assert_mem!(bus, hl_addr, 0xc3);
     }
@@ -1367,7 +1367,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b01_001_000 | R8Operand::to_byte(R8Operand::C),
+            0b01_001_000 | R8Operand::C.to_byte(),
         );
         assert!(
             cpu.get_flag(Flag::Zero),
@@ -1378,7 +1378,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b01_101_000 | R8Operand::to_byte(R8Operand::C),
+            0b01_101_000 | R8Operand::C.to_byte(),
         );
         assert!(
             !cpu.get_flag(Flag::Zero),
@@ -1390,7 +1390,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b01_011_000 | R8Operand::to_byte(R8Operand::HLInd),
+            0b01_011_000 | R8Operand::HLInd.to_byte(),
         );
         assert!(
             !cpu.get_flag(Flag::Zero),
@@ -1409,7 +1409,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b00_110_000 | R8Operand::to_byte(R8Operand::E),
+            0b00_110_000 | R8Operand::E.to_byte(),
         );
         assert_reg!(cpu, Register::E, 0b0000_1111);
 
@@ -1419,7 +1419,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b00_110_000 | R8Operand::to_byte(R8Operand::HLInd),
+            0b00_110_000 | R8Operand::HLInd.to_byte(),
         );
         assert_mem!(bus, hl_addr, 0xbc);
     }
@@ -1435,7 +1435,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b00_111_000 | R8Operand::to_byte(R8Operand::B),
+            0b00_111_000 | R8Operand::B.to_byte(),
         );
         let original_lsb = (0b1111_0000 & 1) != 0;
         assert_reg!(cpu, Register::B, 0b0111_1000);
@@ -1451,7 +1451,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b00_111_000 | R8Operand::to_byte(R8Operand::HLInd),
+            0b00_111_000 | R8Operand::HLInd.to_byte(),
         );
         assert_mem!(bus, hl_addr, 0b0110_0101);
         assert!(cpu.get_flag(Flag::Carry), "SRL [HL] should set the carry flag");
@@ -1468,7 +1468,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b00_001_000 | R8Operand::to_byte(R8Operand::E),
+            0b00_001_000 | R8Operand::E.to_byte(),
         );
         assert_reg!(cpu, Register::E, 0b0111_1000);
         assert!(!cpu.get_flag(Flag::Carry), "RRC on E should not set the carry flag");
@@ -1480,7 +1480,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b00_001_000 | R8Operand::to_byte(R8Operand::HLInd),
+            0b00_001_000 | R8Operand::HLInd.to_byte(),
         );
         assert_mem!(bus, hl_addr, 0b1111_0010);
         assert!(cpu.get_flag(Flag::Carry), "RRC [HL] should set the carry flag");
@@ -1497,7 +1497,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b00_000_000 | R8Operand::to_byte(R8Operand::A),
+            0b00_000_000 | R8Operand::A.to_byte(),
         );
         assert_reg!(cpu, Register::A, 0b0001_1110);
         assert!(!cpu.get_flag(Flag::Carry), "RLC on A should not set the carry flag");
@@ -1508,7 +1508,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b00_000_000 | R8Operand::to_byte(R8Operand::HLInd),
+            0b00_000_000 | R8Operand::HLInd.to_byte(),
         );
         assert_mem!(bus, hl_addr, 0b0101_1110);
         assert!(!cpu.get_flag(Flag::Carry), "RLC [HL] should not set the carry flag");
@@ -1525,7 +1525,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b00_101_000 | R8Operand::to_byte(R8Operand::D),
+            0b00_101_000 | R8Operand::D.to_byte(),
         );
         let original_lsb = (0b1111_0000 & 1) != 0;
         assert_reg!(cpu, Register::D, 0b1111_1000);
@@ -1537,7 +1537,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b00_101_000 | R8Operand::to_byte(R8Operand::HLInd),
+            0b00_101_000 | R8Operand::HLInd.to_byte(),
         );
         assert_mem!(bus, hl_addr, 0b1111_0010);
         assert!(cpu.get_flag(Flag::Carry), "SRA [HL] should set the carry flag");
@@ -1554,7 +1554,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b00_100_000 | R8Operand::to_byte(R8Operand::E),
+            0b00_100_000 | R8Operand::E.to_byte(),
         );
         let original_msb = (0b1111_0000 & 0x80) != 0;
         assert_reg!(cpu, Register::E, 0b1110_0000);
@@ -1566,7 +1566,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b00_100_000 | R8Operand::to_byte(R8Operand::HLInd),
+            0b00_100_000 | R8Operand::HLInd.to_byte(),
         );
         assert_mem!(bus, hl_addr, 0b0101_0110);
         assert!(!cpu.get_flag(Flag::Carry), "SLA [HL] should not set the carry flag");
@@ -1583,7 +1583,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b00_011_000 | R8Operand::to_byte(R8Operand::E),
+            0b00_011_000 | R8Operand::E.to_byte(),
         );
         assert_reg!(cpu, Register::E, 0b0111_1000);
         assert_eq!(
@@ -1598,7 +1598,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b00_011_000 | R8Operand::to_byte(R8Operand::HLInd),
+            0b00_011_000 | R8Operand::HLInd.to_byte(),
         );
         assert_mem!(bus, hl_addr, 0b0111_0010);
         assert!(cpu.get_flag(Flag::Carry), "RR [HL] should set the carry flag");
@@ -1615,7 +1615,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b00_010_000 | R8Operand::to_byte(R8Operand::A),
+            0b00_010_000 | R8Operand::A.to_byte(),
         );
         assert_reg!(cpu, Register::A, 0b0001_1110);
         assert_eq!(
@@ -1630,7 +1630,7 @@ mod tests {
             &mut cpu,
             &mut bus,
             &mut offset,
-            0b00_010_000 | R8Operand::to_byte(R8Operand::HLInd),
+            0b00_010_000 | R8Operand::HLInd.to_byte(),
         );
         assert_mem!(bus, hl_addr, 0b0101_1110);
         assert_eq!(

@@ -4,5 +4,9 @@ mod console;
 
 
 fn main() {
-    let gameboy = Gameboy::new();
+    let mut gameboy = Gameboy::new();
+
+    gameboy.load("10-bit ops.gb");
+
+    gameboy.run();
 }

@@ -27,8 +27,8 @@ impl R8Operand {
         }
     }
 
-    pub fn to_byte(operand: R8Operand) -> u8 {
-        match operand {
+    pub fn to_byte(&self) -> u8 {
+        match self {
             R8Operand::B => 0,
             R8Operand::C => 1,
             R8Operand::D => 2,
@@ -73,8 +73,8 @@ impl R16Operand {
         }
     }
 
-    pub fn to_byte(operand: R16Operand) -> u8 {
-        match operand {
+    pub fn to_byte(&self) -> u8 {
+        match self {
             R16Operand::BC => 0,
             R16Operand::DE => 1,
             R16Operand::HL => 2,
@@ -102,8 +102,8 @@ impl R16StkOperand {
         }
     }
 
-    pub fn to_byte(operand: R16StkOperand) -> u8 {
-        match operand {
+    pub fn to_byte(&self) -> u8 {
+        match self {
             R16StkOperand::BC => 0,
             R16StkOperand::DE => 1,
             R16StkOperand::HL => 2,
@@ -131,8 +131,8 @@ impl R16MemOperand {
         }
     }
 
-    pub fn to_byte(operand: R16MemOperand) -> u8 {
-        match operand {
+    pub fn to_byte(&self) -> u8 {
+        match self {
             R16MemOperand::BC => 0,
             R16MemOperand::DE => 1,
             R16MemOperand::HLI => 2,
@@ -160,8 +160,8 @@ impl FlowCondition {
         }
     }
 
-    pub fn to_byte(operand: FlowCondition) -> u8 {
-        match operand {
+    pub fn to_byte(&self) -> u8 {
+        match self {
             FlowCondition::NotZero => 0,
             FlowCondition::Zero => 1,
             FlowCondition::NotCarry => 2,
