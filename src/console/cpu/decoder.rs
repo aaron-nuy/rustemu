@@ -9,66 +9,14 @@ pub fn decode(first_byte: u8, second_byte: u8, third_byte: u8) -> (Instruction, 
     }
 }
 
-// TODO: Stop using this and get operand manually
-fn get_operand_from_opcode(
-    opcode: u8,
-    operand_type: OperandType,
-    is_destination: bool,
-    is_cb: bool,
-) -> u8 {
-    let block = Block::from_byte(opcode, is_cb);
-
-    let (mask, shift_right) = match operand_type {
-        OperandType::R8Operand => match block {
-            Block::ZERO => (0b00111000, 3),
-            Block::ONE => {
-                if is_destination {
-                    (0b00111000, 3)
-                } else {
-                    (0b00000111, 0)
-                }
-            }
-            Block::TWO | Block::CB => (0b00000111, 0),
-            Block::THREE => panic!("Attempting to access R8Operand from block THREE"),
-        },
-        OperandType::R16Operand => match block {
-            Block::ZERO => (0b00110000, 4),
-            _ => panic!("Attempting to access R16Operand from block other than ZERO"),
-        },
-        OperandType::R16StkOperand => match block {
-            Block::THREE => (0b00110000, 4),
-            _ => panic!("Attempting to access R16StkOperand from block other than THREE"),
-        },
-        OperandType::R16MemOperand => match block {
-            Block::ZERO => (0b00110000, 4),
-            _ => panic!("Attempting to access R16MemOperand from block other than ZERO"),
-        },
-        OperandType::FlowCondition => match block {
-            Block::ZERO | Block::THREE => (0b00011000, 3),
-            _ => {
-                panic!("Attempting to access FlowCondition from block other than ZERO or THREE")
-            }
-        },
-        OperandType::BitIndex => match block {
-            Block::CB => (0b00111000, 3),
-            _ => panic!("Attempting to access BitIndex from block other than CB"),
-        },
-        OperandType::ResetTarget => match block {
-            Block::THREE => (0b00111000, 3),
-            _ => panic!("Attempting to access ResetTarget from block other than THREE"),
-        },
-    };
-
-    (opcode & mask) >> shift_right
-}
-
 fn decode_cb(opcode: u8) -> (Instruction, u16) {
+    let operand = opcode & 0b0000_0111;
+    let bit_index = (opcode & 0b0011_1000) >> 3;
+    let r8_operand = R8Operand::from_byte(operand);
+
     match (opcode & 0b11000000) >> 6 {
         0 => match (opcode & 0b00111000) >> 3 {
             0 => {
-                let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, true);
-                let r8_operand = R8Operand::from_byte(operand);
-
                 match r8_operand {
                     R8Operand::HLInd => (Instruction::RLCHLInd(), 2),
                     _ => {
@@ -78,9 +26,6 @@ fn decode_cb(opcode: u8) -> (Instruction, u16) {
                 }
             }
             1 => {
-                let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, true);
-                let r8_operand = R8Operand::from_byte(operand);
-
                 match r8_operand {
                     R8Operand::HLInd => (Instruction::RRCHLInd(), 2),
                     _ => {
@@ -90,9 +35,6 @@ fn decode_cb(opcode: u8) -> (Instruction, u16) {
                 }
             }
             2 => {
-                let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, true);
-                let r8_operand = R8Operand::from_byte(operand);
-
                 match r8_operand {
                     R8Operand::HLInd => (Instruction::RLHLInd(), 2),
                     _ => {
@@ -102,9 +44,6 @@ fn decode_cb(opcode: u8) -> (Instruction, u16) {
                 }
             }
             3 => {
-                let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, true);
-                let r8_operand = R8Operand::from_byte(operand);
-
                 match r8_operand {
                     R8Operand::HLInd => (Instruction::RRHLInd(), 2),
                     _ => {
@@ -114,9 +53,6 @@ fn decode_cb(opcode: u8) -> (Instruction, u16) {
                 }
             }
             4 => {
-                let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, true);
-                let r8_operand = R8Operand::from_byte(operand);
-
                 match r8_operand {
                     R8Operand::HLInd => (Instruction::SLAHLInd(), 2),
                     _ => {
@@ -126,9 +62,6 @@ fn decode_cb(opcode: u8) -> (Instruction, u16) {
                 }
             }
             5 => {
-                let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, true);
-                let r8_operand = R8Operand::from_byte(operand);
-
                 match r8_operand {
                     R8Operand::HLInd => (Instruction::SRAHLInd(), 2),
                     _ => {
@@ -138,9 +71,6 @@ fn decode_cb(opcode: u8) -> (Instruction, u16) {
                 }
             }
             6 => {
-                let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, true);
-                let r8_operand = R8Operand::from_byte(operand);
-
                 match r8_operand {
                     R8Operand::HLInd => (Instruction::SWAPHLInd(), 2),
                     _ => {
@@ -150,9 +80,6 @@ fn decode_cb(opcode: u8) -> (Instruction, u16) {
                 }
             }
             7 => {
-                let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, true);
-                let r8_operand = R8Operand::from_byte(operand);
-
                 match r8_operand {
                     R8Operand::HLInd => (Instruction::SRLHLInd(), 2),
                     _ => {
@@ -164,11 +91,6 @@ fn decode_cb(opcode: u8) -> (Instruction, u16) {
             _ => panic!("Unknown CB instruction {}", opcode),
         },
         1 => {
-            let bit_index = get_operand_from_opcode(opcode, OperandType::BitIndex, false, true);
-            let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, true);
-
-            let r8_operand = R8Operand::from_byte(operand);
-
             match r8_operand {
                 R8Operand::HLInd => (Instruction::BITHLInd(bit_index), 2),
                 _ => {
@@ -178,11 +100,6 @@ fn decode_cb(opcode: u8) -> (Instruction, u16) {
             }
         }
         2 => {
-            let bit_index = get_operand_from_opcode(opcode, OperandType::BitIndex, false, true);
-            let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, true);
-
-            let r8_operand = R8Operand::from_byte(operand);
-
             match r8_operand {
                 R8Operand::HLInd => (Instruction::RESETHLInd(bit_index), 2),
                 _ => {
@@ -192,11 +109,6 @@ fn decode_cb(opcode: u8) -> (Instruction, u16) {
             }
         }
         3 => {
-            let bit_index = get_operand_from_opcode(opcode, OperandType::BitIndex, false, true);
-            let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, true);
-
-            let r8_operand = R8Operand::from_byte(operand);
-
             match r8_operand {
                 R8Operand::HLInd => (Instruction::SETHLInd(bit_index), 2),
                 _ => {
@@ -234,12 +146,12 @@ fn decode_generic_block_0(opcode: u8, imm_8: u8, imm_16: u16) -> (Instruction, u
         0b0001_1000 => (Instruction::JR(imm_8 as i8), 2),
         0b0000_1000 => (Instruction::LDToImmIndFromSP(imm_16), 3),
         opcode if (opcode & 0b1110_0111) == 0b0010_0000 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::FlowCondition, false, false);
+            let operand = (opcode & 0b0001_1000) >> 3;
             let cond_operand = FlowCondition::from_byte(operand);
             (Instruction::JRCC(cond_operand, imm_8 as i8), 2)
         }
         opcode if (opcode & 0b1100_0111) == 0b0000_0110 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
+            let operand = (opcode & 0b0011_1000) >> 3;
             let r8_operand = R8Operand::from_byte(operand);
 
             match r8_operand {
@@ -251,7 +163,7 @@ fn decode_generic_block_0(opcode: u8, imm_8: u8, imm_16: u16) -> (Instruction, u
             }
         }
         opcode if (opcode & 0b1100_0111) == 0b0000_0100 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
+            let operand = (opcode & 0b0011_1000) >> 3;
             let r8_operand = R8Operand::from_byte(operand);
 
             match r8_operand {
@@ -263,7 +175,7 @@ fn decode_generic_block_0(opcode: u8, imm_8: u8, imm_16: u16) -> (Instruction, u
             }
         }
         opcode if (opcode & 0b1100_0111) == 0b0000_0101 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
+            let operand = (opcode & 0b0011_1000) >> 3;
             let r8_operand = R8Operand::from_byte(operand);
 
             match r8_operand {
@@ -275,31 +187,31 @@ fn decode_generic_block_0(opcode: u8, imm_8: u8, imm_16: u16) -> (Instruction, u
             }
         }
         opcode if (opcode & 0b1100_1111) == 0b0000_0011 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::R16Operand, false, false);
+            let operand = (opcode & 0b0011_0000) >> 4;
             let r16_operand = R16Operand::from_byte(operand);
             let register_16 = Register16::from_r16_operand(r16_operand);
             (Instruction::INC16(register_16), 1)
         }
         opcode if (opcode & 0b1100_1111) == 0b0000_1011 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::R16Operand, false, false);
+            let operand = (opcode & 0b0011_0000) >> 4;
             let r16_operand = R16Operand::from_byte(operand);
             let register_16 = Register16::from_r16_operand(r16_operand);
             (Instruction::DEC16(register_16), 1)
         }
         opcode if (opcode & 0b1100_1111) == 0b0000_1001 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::R16Operand, false, false);
+            let operand = (opcode & 0b0011_0000) >> 4;
             let r16_operand = R16Operand::from_byte(operand);
             let register_16 = Register16::from_r16_operand(r16_operand);
             (Instruction::ADDHL(register_16), 1)
         }
         opcode if (opcode & 0b1100_1111) == 0b0000_0001 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::R16Operand, false, false);
+            let operand = (opcode & 0b0011_0000) >> 4;
             let r16_operand = R16Operand::from_byte(operand);
             let register_16 = Register16::from_r16_operand(r16_operand);
             (Instruction::LDImm16(register_16, imm_16), 3)
         }
         opcode if (opcode & 0b1100_1111) == 0b0000_0010 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::R16MemOperand, false, false);
+            let operand = (opcode & 0b0011_0000) >> 4;
             let r16mem_operand = R16MemOperand::from_byte(operand);
 
             match r16mem_operand {
@@ -310,7 +222,7 @@ fn decode_generic_block_0(opcode: u8, imm_8: u8, imm_16: u16) -> (Instruction, u
             }
         }
         opcode if (opcode & 0b1100_1111) == 0b0000_1010 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::R16MemOperand, false, false);
+            let operand = (opcode & 0b0011_0000) >> 4;
             let r16mem_operand = R16MemOperand::from_byte(operand);
 
             match r16mem_operand {
@@ -328,15 +240,14 @@ fn decode_generic_block_0(opcode: u8, imm_8: u8, imm_16: u16) -> (Instruction, u
 }
 
 fn decode_generic_block_1(opcode: u8, _: u8, _: u16) -> (Instruction, u16) {
+    let operand_dest = (opcode & 0b0011_1000) >> 3;
+    let operand_source = opcode & 0b0000_0111;
+    let r8_operand_dest = R8Operand::from_byte(operand_dest);
+    let r8_operand_source = R8Operand::from_byte(operand_source);
+
     match opcode {
         0b0111_0110 => (Instruction::HALT(), 1),
         opcode if (opcode & 0b1100_0000) == 0b0100_0000 => {
-            let operand_dest = get_operand_from_opcode(opcode, OperandType::R8Operand, true, false);
-            let operand_source =
-                get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
-
-            let r8_operand_dest = R8Operand::from_byte(operand_dest);
-            let r8_operand_source = R8Operand::from_byte(operand_source);
 
             match (r8_operand_dest.clone(), r8_operand_source.clone()) {
                 (R8Operand::HLInd, R8Operand::HLInd) => (Instruction::HALT(), 1),
@@ -363,11 +274,11 @@ fn decode_generic_block_1(opcode: u8, _: u8, _: u16) -> (Instruction, u16) {
 }
 
 fn decode_generic_block_2(opcode: u8, _: u8, _: u16) -> (Instruction, u16) {
+    let operand =  opcode & 0b000_0111;
+    let r8_operand = R8Operand::from_byte(operand);
+
     match (opcode & 0b0111_1000) >> 3 {
         0 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
-            let r8_operand = R8Operand::from_byte(operand);
-
             match r8_operand {
                 R8Operand::HLInd => (Instruction::ADDHLInd(), 1),
                 _ => {
@@ -377,9 +288,6 @@ fn decode_generic_block_2(opcode: u8, _: u8, _: u16) -> (Instruction, u16) {
             }
         }
         1 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
-            let r8_operand = R8Operand::from_byte(operand);
-
             match r8_operand {
                 R8Operand::HLInd => (Instruction::ADDCHLInd(), 1),
                 _ => {
@@ -389,9 +297,6 @@ fn decode_generic_block_2(opcode: u8, _: u8, _: u16) -> (Instruction, u16) {
             }
         }
         2 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
-            let r8_operand = R8Operand::from_byte(operand);
-
             match r8_operand {
                 R8Operand::HLInd => (Instruction::SUBHLInd(), 1),
                 _ => {
@@ -401,9 +306,6 @@ fn decode_generic_block_2(opcode: u8, _: u8, _: u16) -> (Instruction, u16) {
             }
         }
         3 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
-            let r8_operand = R8Operand::from_byte(operand);
-
             match r8_operand {
                 R8Operand::HLInd => (Instruction::SUBCHLInd(), 1),
                 _ => {
@@ -413,9 +315,6 @@ fn decode_generic_block_2(opcode: u8, _: u8, _: u16) -> (Instruction, u16) {
             }
         }
         4 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
-            let r8_operand = R8Operand::from_byte(operand);
-
             match r8_operand {
                 R8Operand::HLInd => (Instruction::ANDHLInd(), 1),
                 _ => {
@@ -425,9 +324,6 @@ fn decode_generic_block_2(opcode: u8, _: u8, _: u16) -> (Instruction, u16) {
             }
         }
         5 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
-            let r8_operand = R8Operand::from_byte(operand);
-
             match r8_operand {
                 R8Operand::HLInd => (Instruction::XORHLInd(), 1),
                 _ => {
@@ -437,9 +333,6 @@ fn decode_generic_block_2(opcode: u8, _: u8, _: u16) -> (Instruction, u16) {
             }
         }
         6 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
-            let r8_operand = R8Operand::from_byte(operand);
-
             match r8_operand {
                 R8Operand::HLInd => (Instruction::ORHLInd(), 1),
                 _ => {
@@ -449,9 +342,6 @@ fn decode_generic_block_2(opcode: u8, _: u8, _: u16) -> (Instruction, u16) {
             }
         }
         7 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::R8Operand, false, false);
-            let r8_operand = R8Operand::from_byte(operand);
-
             match r8_operand {
                 R8Operand::HLInd => (Instruction::CPHLInd(), 1),
                 _ => {
@@ -485,38 +375,38 @@ fn decode_generic_block_3(opcode: u8, imm_8: u8, imm_16: u16) -> (Instruction, u
         0b1110_1001 => (Instruction::JPHL(), 1),
         0b1100_1101 => (Instruction::CALL(imm_16), 3),
         opcode if (opcode & 0b1110_0111) == 0b1100_0000 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::FlowCondition, false, false);
+            let operand = (opcode & 0b0001_1000) >> 3;
             let cond = FlowCondition::from_byte(operand);
 
             (Instruction::RETCC(cond), 1)
         }
         opcode if (opcode & 0b1110_0111) == 0b1100_0010 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::FlowCondition, false, false);
+            let operand = (opcode & 0b0001_1000) >> 3;
             let cond = FlowCondition::from_byte(operand);
 
             (Instruction::JPCC(cond, imm_16), 3)
         }
         opcode if (opcode & 0b1110_0111) == 0b1100_0100 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::FlowCondition, false, false);
+            let operand = (opcode & 0b0001_1000) >> 3;
             let cond = FlowCondition::from_byte(operand);
 
             (Instruction::CALLCC(cond, imm_16), 3)
         }
         opcode if (opcode & 0b1100_0111) == 0b1100_0111 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::ResetTarget, false, false);
+            let operand = (opcode & 0b0011_1000) >> 3;
 
             (Instruction::RST(operand), 1)
         }
         // Table 3
         opcode if (opcode & 0b1100_1111) == 0b1100_0001 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::R16StkOperand, false, false);
+            let operand = (opcode & 0b0011_0000) >> 4;
             let r16stk_operand = R16StkOperand::from_byte(operand);
             let register_16 = Register16::from_r16stk_operand(r16stk_operand);
 
             (Instruction::POP(register_16), 1)
         }
         opcode if (opcode & 0b1100_1111) == 0b1100_0101 => {
-            let operand = get_operand_from_opcode(opcode, OperandType::R16StkOperand, false, false);
+            let operand = (opcode & 0b0011_0000) >> 4;
             let r16stk_operand = R16StkOperand::from_byte(operand);
             let register_16 = Register16::from_r16stk_operand(r16stk_operand);
 
