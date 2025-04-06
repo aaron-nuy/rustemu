@@ -1106,6 +1106,7 @@ impl Cpu {
         self.pc = self.pc.wrapping_add(instruction_size);
     }
 
+    // TODO: Clean cpu execute function
     fn execute(&mut self, instruction: Instruction, bus: &mut Bus) -> u64 {
         match instruction {
             Instruction::HALT() => self.halt(),
