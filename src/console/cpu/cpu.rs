@@ -1,4 +1,3 @@
-use crate::console::cpu::decoder;
 use crate::console::cpu::instruction::*;
 use crate::console::bus::*;
 use crate::console::utils::bit_utils;
@@ -1106,7 +1105,7 @@ impl Cpu {
         let first_byte = bus.read_from_8b(self.pc);
         let second_byte = bus.read_from_8b(self.pc.wrapping_add(1));
         let third_byte = bus.read_from_8b(self.pc.wrapping_add(2));
-        decoder::decode(first_byte, second_byte, third_byte)
+        Instruction::decode(first_byte, second_byte, third_byte)
     }
 
     pub fn clock(&mut self, bus: &mut Bus) {
