@@ -82,7 +82,7 @@ impl R16Operand {
         }
     }
 
-    pub fn to_byte_from_register(register_16: Register16) -> u8 {
+    pub fn to_byte_from_register_16(register_16: Register16) -> u8 {
         match register_16 {
             Register16::BC => 0,
             Register16::DE => 1,
@@ -118,6 +118,16 @@ impl R16StkOperand {
             R16StkOperand::DE => 1,
             R16StkOperand::HL => 2,
             R16StkOperand::AF => 3,
+        }
+    }
+
+    pub fn to_byte_from_register_16(register_16: Register16) -> u8 {
+        match register_16 {
+            Register16::BC => 0,
+            Register16::DE => 1,
+            Register16::HL => 2,
+            Register16::AF => 3,
+            Register16::SP | Register16::PC => panic!("Attempting to construct R16StkOperand from unsupported register")
         }
     }
 }

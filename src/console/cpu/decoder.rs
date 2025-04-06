@@ -545,7 +545,8 @@ fn decode_generic_block_3(opcode: u8, imm_8: u8, imm_16: u16) -> (Instruction, u
 
 #[cfg(test)]
 mod tests {
-    use crate::console::cpu::{decoder::*, instruction, register};
+
+    use crate::console::cpu::decoder::*;
 
     fn encode_cb_table_1(instruction: Instruction) -> u8 {
         use Instruction::*;
@@ -674,17 +675,17 @@ mod tests {
                 [instruction, imm_8 as u8, 0]
             }
             INC16(register_16) => {
-                let operand = R16Operand::to_byte_from_register(register_16);
+                let operand = R16Operand::to_byte_from_register_16(register_16);
                 let instruction = 0b0000_0011 | (operand << 4);
                 [instruction, 0, 0]
             }
             DEC16(register_16) => {
-                let operand = R16Operand::to_byte_from_register(register_16);
+                let operand = R16Operand::to_byte_from_register_16(register_16);
                 let instruction = 0b0000_1011 | (operand << 4);
                 [instruction, 0, 0]
             }
             ADDHL(register_16) => {
-                let operand = R16Operand::to_byte_from_register(register_16);
+                let operand = R16Operand::to_byte_from_register_16(register_16);
                 let instruction = 0b0000_1001 | (operand << 4);
                 [instruction, 0, 0]
             }
@@ -704,7 +705,7 @@ mod tests {
                 [instruction, imm_8, 0]
             }
             LDImm16(register_16, imm_16) => {
-                let operand = R16Operand::to_byte_from_register(register_16);
+                let operand = R16Operand::to_byte_from_register_16(register_16);
                 let instruction = 0b0000_0001 | (operand << 4);
                 let imm_bytes = imm_16.to_le_bytes();
                 [instruction, imm_bytes[0], imm_bytes[1]]
@@ -819,6 +820,86 @@ mod tests {
             ORHLInd() => (0b1011_0000 | hl_ind_r8_op_byte),
             CPHLInd() => (0b1011_1000 | hl_ind_r8_op_byte),
             _ => panic!("Not Block 2 instruction"),
+        }
+    }
+
+    fn encode_generic_block_3(instruction: Instruction) -> [u8; 3] {
+        use Instruction::*;
+
+        match instruction {
+            ADDImm(imm_8) => [0b1100_0110, imm_8, 0],
+            ADDCImm(imm_8) => [0b1100_1110, imm_8, 0],
+            SUBImm(imm_8) => [0b1101_0110, imm_8, 0],
+            SUBCImm(imm_8) => [0b1101_1110, imm_8, 0],
+            ANDImm(imm_8) => [0b1110_0110, imm_8, 0],
+            XORImm(imm_8) => [0b1110_1110, imm_8, 0],
+            ORImm(imm_8) => [0b1111_0110, imm_8, 0],
+            CPImm(imm_8) => [0b1111_1110, imm_8, 0],
+            RET() => [0b1100_1001, 0, 0],
+            RETI() => [0b1101_1001, 0, 0],
+            DI() => [0b1111_0011, 0, 0],
+            EI() => [0b1111_1011, 0, 0],
+            ADDSPImm(imm_8) => [0b1110_1000, imm_8 as u8, 0],
+            LDHLFromAdjustedSP(imm_8) => [0b1111_1000, imm_8 as u8, 0],
+            LDSPFromHL() => [0b1111_1001, 0, 0],
+            LDFromAToCInd() => [0b1110_0010, 0, 0],
+            LDToImmIndFromA8(imm_8) => [0b1110_0000, imm_8, 0],
+            LDToImmIndFromA(imm_16) => [
+                0b1110_1010,
+                imm_16.to_le_bytes()[0],
+                imm_16.to_le_bytes()[1],
+            ],
+            LDToAFromCInd() => [0b1111_0010, 0, 0],
+            LDFromImmIndToA8(imm_8) => [0b1111_0000, imm_8, 0],
+            LDFromImmIndToA(imm_16) => [
+                0b1111_1010,
+                imm_16.to_le_bytes()[0],
+                imm_16.to_le_bytes()[1],
+            ],
+            CALL(imm_16) => [
+                0b1100_1101,
+                imm_16.to_le_bytes()[0],
+                imm_16.to_le_bytes()[1],
+            ],
+            JP(imm_16) => [
+                0b1100_0011,
+                imm_16.to_le_bytes()[0],
+                imm_16.to_le_bytes()[1],
+            ],
+            JPHL() => [0b1110_1001, 0, 0],
+            RST(imm_8) => {
+                let operand = imm_8 << 3;
+                [0b1100_0111 | operand, 0, 0]
+            }
+            RETCC(cond) => {
+                let operand = cond.to_byte() << 3;
+                [0b1100_0000 | operand, 0, 0]
+            }
+            JPCC(cond, imm_16) => {
+                let operand = cond.to_byte() << 3;
+                [
+                    0b1100_0010 | operand,
+                    imm_16.to_le_bytes()[0],
+                    imm_16.to_le_bytes()[1],
+                ]
+            }
+            CALLCC(cond, imm_16) => {
+                let operand = cond.to_byte() << 3;
+                [
+                    0b1100_0100 | operand,
+                    imm_16.to_le_bytes()[0],
+                    imm_16.to_le_bytes()[1],
+                ]
+            }
+            POP(register_16) => {
+                let operand = R16StkOperand::to_byte_from_register_16(register_16) << 4;
+                [0b1100_0001 | operand, 0, 0]
+            }
+            PUSH(register_16) => {
+                let operand = R16StkOperand::to_byte_from_register_16(register_16) << 4;
+                [0b1100_0101 | operand, 0, 0]
+            }
+            _ => panic!("Not Block 3 instruction"),
         }
     }
 
@@ -940,7 +1021,7 @@ mod tests {
     fn test_decode_block_0() {
         use Instruction::*;
 
-        // test 1 byte, no params instructions
+        // 1 byte, no params instructions
         {
             let expected_size = 1;
             let instructions = [
@@ -954,7 +1035,6 @@ mod tests {
                 SCF(),
                 CCF(),
             ];
-
 
             for instruction in instructions {
                 let [instruction_byte, byte2, byte3] = encode_generic_block_0(instruction.clone());
@@ -972,34 +1052,38 @@ mod tests {
                 match r8_operand {
                     R8Operand::HLInd => {
                         let instruction = INCHLInd();
-                        let [instruction_byte, byte2, byte3] = encode_generic_block_0(instruction.clone());
+                        let [instruction_byte, byte2, byte3] =
+                            encode_generic_block_0(instruction.clone());
                         assert_decode(instruction, expected_size, instruction_byte, byte2, byte3);
 
                         let instruction = DECHLInd();
-                        let [instruction_byte, byte2, byte3] = encode_generic_block_0(instruction.clone());
+                        let [instruction_byte, byte2, byte3] =
+                            encode_generic_block_0(instruction.clone());
                         assert_decode(instruction, expected_size, instruction_byte, byte2, byte3);
                     }
                     _ => {
                         let register = Register::from_r8_operand(r8_operand);
 
                         let instruction = INC(register.clone());
-                        let [instruction_byte, byte2, byte3] = encode_generic_block_0(instruction.clone());
+                        let [instruction_byte, byte2, byte3] =
+                            encode_generic_block_0(instruction.clone());
                         assert_decode(instruction, expected_size, instruction_byte, byte2, byte3);
 
                         let instruction = DEC(register);
-                        let [instruction_byte, byte2, byte3] = encode_generic_block_0(instruction.clone());
+                        let [instruction_byte, byte2, byte3] =
+                            encode_generic_block_0(instruction.clone());
                         assert_decode(instruction, expected_size, instruction_byte, byte2, byte3);
                     }
                 }
             }
         }
-    
+
         // Stop
         {
             let [instruction_byte, byte2, byte3] = encode_generic_block_0(STOP());
             assert_decode(STOP(), 2, instruction_byte, byte2, byte3);
         }
-    
+
         // LD r, n
         {
             let expected_size = 2;
@@ -1011,23 +1095,23 @@ mod tests {
                     R8Operand::HLInd => {
                         let random_u8: u8 = 233;
                         let instruction = LDToHlIndImm(random_u8);
-                        let [instruction_byte, byte2, byte3] = encode_generic_block_0(instruction.clone());
+                        let [instruction_byte, byte2, byte3] =
+                            encode_generic_block_0(instruction.clone());
                         assert_decode(instruction, expected_size, instruction_byte, byte2, byte3);
-
                     }
                     _ => {
                         let register = Register::from_r8_operand(r8_operand);
                         let random_u8: u8 = 201;
                         let instruction = LDImm(register.clone(), random_u8);
-                        let [instruction_byte, byte2, byte3] = encode_generic_block_0(instruction.clone());
+                        let [instruction_byte, byte2, byte3] =
+                            encode_generic_block_0(instruction.clone());
                         assert_decode(instruction, expected_size, instruction_byte, byte2, byte3);
-
                     }
                 }
             }
         }
-    
-        // jump 
+
+        // jump
         {
             let expected_size = 2;
 
@@ -1043,12 +1127,12 @@ mod tests {
                 let instruction = JRCC(cond, random_u8);
                 let [instruction_byte, byte2, byte3] = encode_generic_block_0(instruction.clone());
                 assert_decode(instruction, expected_size, instruction_byte, byte2, byte3);
-            } 
+            }
         }
 
         // inc/dec/addhl 16
         {
-            let expected_size  = 1;
+            let expected_size = 1;
 
             for operand in 0..=3 {
                 let r16_operand = R16Operand::from_byte(operand);
@@ -1061,16 +1145,16 @@ mod tests {
                 ];
 
                 for instruction in instructions {
-                    let [instruction_byte, byte2, byte3] = encode_generic_block_0(instruction.clone());
+                    let [instruction_byte, byte2, byte3] =
+                        encode_generic_block_0(instruction.clone());
                     assert_decode(instruction, expected_size, instruction_byte, byte2, byte3);
                 }
-
             }
         }
-        
+
         // ld [imm16], sp/ld rr, nn
         {
-            let expected_size  = 3;
+            let expected_size = 3;
 
             for operand in 0..=3 {
                 let r16_operand = R16Operand::from_byte(operand);
@@ -1085,11 +1169,11 @@ mod tests {
             let [instruction_byte, byte2, byte3] = encode_generic_block_0(instruction.clone());
             assert_decode(instruction, expected_size, instruction_byte, byte2, byte3);
         }
-        
+
         // ld [r16mem], a/ld a, [r16mem]
         {
             let expected_size = 1;
-            
+
             let instruction = LDToBCIndFromA();
             let [instruction_byte, byte2, byte3] = encode_generic_block_0(instruction.clone());
             assert_decode(instruction, expected_size, instruction_byte, byte2, byte3);
@@ -1203,6 +1287,132 @@ mod tests {
         for instruction in instructions {
             let instruction_byte = encode_generic_block_2(instruction.clone());
             assert_decode(instruction, expected_size, instruction_byte, 0, 0);
+        }
+    }
+
+    #[test]
+    fn test_decode_block_3() {
+        use Instruction::*;
+
+        // test 1 byte, no params instructions
+        {
+            let expected_size = 1;
+            let instructions = [
+                DI(),
+                EI(),
+                LDSPFromHL(),
+                LDFromAToCInd(),
+                LDToAFromCInd(),
+                RET(),
+                RETI(),
+                JPHL(),
+            ];
+
+            for instruction in instructions {
+                let [instruction_byte, byte2, byte3] = encode_generic_block_3(instruction.clone());
+                assert_decode(instruction, expected_size, instruction_byte, byte2, byte3);
+            }
+        }
+
+        // 8bit imm
+        {
+            let expected_size = 2;
+
+            let numbers: [u8; 4] = [200, 127, 0, 50];
+
+            for number in numbers {
+                let instructions = [
+                    ADDImm(number),
+                    ADDCImm(number),
+                    SUBImm(number),
+                    SUBCImm(number),
+                    ANDImm(number),
+                    ORImm(number),
+                    XORImm(number),
+                    CPImm(number),
+                    ADDSPImm(number as i8),
+                    LDHLFromAdjustedSP(number as i8),
+                    LDFromImmIndToA8(number),
+                    LDToImmIndFromA8(number),
+                ];
+
+                for instruction in instructions {
+                    let [instruction_byte, byte2, byte3] =
+                        encode_generic_block_3(instruction.clone());
+                    assert_decode(instruction, expected_size, instruction_byte, byte2, byte3);
+                }
+            }
+        }
+
+        // Stack
+        {
+            let expected_size = 1;
+
+            for operand in 0..=3 {
+                let r16stk_operand = R16StkOperand::from_byte(operand);
+                let register_16 = Register16::from_r16stk_operand(r16stk_operand);
+
+                let instructions = [POP(register_16.clone()), PUSH(register_16.clone())];
+
+                for instruction in instructions {
+                    let [instruction_byte, byte2, byte3] =
+                        encode_generic_block_3(instruction.clone());
+                    assert_decode(instruction, expected_size, instruction_byte, byte2, byte3);
+                }
+            }
+        }
+
+        // reset
+        {
+            let expected_size = 1;
+            let instruction = RST(7);
+            let [instruction_byte, byte2, byte3] = encode_generic_block_3(instruction.clone());
+            assert_decode(instruction, expected_size, instruction_byte, byte2, byte3);
+        }
+
+        // ret cond
+        {
+            let expected_size = 1;
+
+            for operand in 0..=3 {
+                let cond = FlowCondition::from_byte(operand);
+                let instruction = RETCC(cond);
+                let [instruction_byte, byte2, byte3] = encode_generic_block_3(instruction.clone());
+                assert_decode(instruction, expected_size, instruction_byte, byte2, byte3);
+            }
+        }
+
+        // 16-bit cond
+        {
+            let expected_size = 3;
+
+            for operand in 0..=3 {
+                let cond = FlowCondition::from_byte(operand);
+                let instructions = [JPCC(cond.clone(), 33402), CALLCC(cond.clone(), 10490)];
+
+                for instruction in instructions {
+                    let [instruction_byte, byte2, byte3] =
+                        encode_generic_block_3(instruction.clone());
+                    assert_decode(instruction, expected_size, instruction_byte, byte2, byte3);
+                }
+            }
+        }
+
+        // 16-bit cond
+        {
+            let expected_size = 3;
+
+            let instructions = [
+                JP(33402),
+                CALL(10490),
+                LDFromImmIndToA(23400),
+                LDToImmIndFromA(23400),
+            ];
+
+            for instruction in instructions {
+                let [instruction_byte, byte2, byte3] = encode_generic_block_3(instruction.clone());
+                assert_decode(instruction, expected_size, instruction_byte, byte2, byte3);
+            }
         }
     }
 }
