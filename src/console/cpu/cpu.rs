@@ -1,5 +1,5 @@
-use crate::console::cpu::instruction::*;
 use crate::console::bus::*;
+use crate::console::cpu::instruction::*;
 use crate::console::utils::bit_utils;
 
 #[derive(Default)]
@@ -116,17 +116,6 @@ impl Cpu {
         }
     }
 
-    fn set_register_bit(&mut self, register: Register, bit_position: u8, on: bool) {
-        let register_value = self.get_register(register.clone());
-        let new_register_value = bit_utils::modify_bit(register_value, bit_position, on);
-        self.set_register(register, new_register_value);
-    }
-
-    fn get_register_bit(&self, register: Register, bit_position: u8) -> bool {
-        let register_value = self.get_register(register.clone());
-        bit_utils::get_bit(register_value, bit_position)
-    }
-
     fn get_bc(&self) -> u16 {
         ((self.b as u16) << 8) | (self.c as u16)
     }
@@ -166,8 +155,7 @@ impl Cpu {
     fn set_flag(&mut self, flag: Flag, on: bool) {
         self.f = if on {
             self.f | (flag as u8)
-        }
-        else {
+        } else {
             self.f & !(flag as u8)
         }
     }
@@ -372,11 +360,7 @@ impl Cpu {
     }
 
     fn _adc(&mut self, value: u8) {
-        let carry_flag = if self.get_flag(Flag::Carry) {
-            1
-        } else {
-            0
-        };
+        let carry_flag = if self.get_flag(Flag::Carry) { 1 } else { 0 };
 
         let (first_add, did_overflow1) = self.a.overflowing_add(value);
         let (second_add, did_overflow2) = first_add.overflowing_add(carry_flag);
@@ -433,11 +417,7 @@ impl Cpu {
     }
 
     fn _sbc(&mut self, value: u8) {
-        let carry_flag = if self.get_flag(Flag::Carry) {
-            1
-        } else {
-            0
-        };
+        let carry_flag = if self.get_flag(Flag::Carry) { 1 } else { 0 };
 
         let (fist_sub, did_borrow1) = self.a.overflowing_sub(value);
         let (second_sub, did_borrow2) = fist_sub.overflowing_sub(carry_flag);
@@ -1128,93 +1108,247 @@ impl Cpu {
 
     fn execute(&mut self, instruction: Instruction, bus: &mut Bus) -> u64 {
         match instruction {
-            Instruction::LD(register_to, register_from) => self.ld(register_to, register_from),
-            Instruction::LDImm(register_to, imm) => self.ld_imm(register_to, imm),
-            Instruction::LDFromHLInd(register_to) => self.ld_from_hl_ind(register_to, bus),
-            Instruction::LDToHLInd(register_from) => self.ld_to_hl_ind(register_from, bus),
-            Instruction::LDToHlIndImm(imm) => self.ld_to_hl_ind_imm(imm, bus),
-            Instruction::LDFromBCIndToA() => self.ld_from_bc_ind_to_a(bus),
-            Instruction::LDFromDEIndToA() => self.ld_from_de_ind_to_a(bus),
-            Instruction::LDToBCIndFromA() => self.ld_to_bc_ind_from_a(bus),
-            Instruction::LDToDEIndFromA() => self.ld_to_de_ind_from_a(bus),
-            Instruction::LDFromImmIndToA(imm) => self.ld_from_imm_ind_to_a(imm, bus),
-            Instruction::LDToImmIndFromA(imm) => self.ld_to_imm_ind_from_a(imm, bus),
+            Instruction::HALT() => self.halt(),
+            Instruction::LD(r8_operand_dest, r8_operand_source) => {
+                match (r8_operand_dest.clone(), r8_operand_source.clone()) {
+                    (R8Operand::HLInd, R8Operand::HLInd) => self.halt(),
+                    (R8Operand::HLInd, _) => {
+                        let register_source: Register =
+                            Register::from_r8_operand(r8_operand_source);
+                        self.ld_to_hl_ind(register_source, bus)
+                    }
+                    (_, R8Operand::HLInd) => {
+                        let register_dest: Register = Register::from_r8_operand(r8_operand_dest);
+                        self.ld_from_hl_ind(register_dest, bus)
+                    }
+                    (_, _) => {
+                        let register_source: Register =
+                            Register::from_r8_operand(r8_operand_source);
+                        let register_dest: Register = Register::from_r8_operand(r8_operand_dest);
+                        self.ld(register_dest, register_source)
+                    }
+                }
+            }
+            Instruction::LDImm8(r8_operand, imm) => match r8_operand {
+                R8Operand::HLInd => self.ld_to_hl_ind_imm(imm, bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.ld_imm(register, imm)
+                }
+            },
+            Instruction::LDToMemFromA(r16mem_operand) => {
+                match r16mem_operand {
+                    R16MemOperand::BC => self.ld_to_bc_ind_from_a(bus),
+                    R16MemOperand::DE => self.ld_to_de_ind_from_a(bus),
+                    R16MemOperand::HLD => self.ld_to_hl_ind_dec_from_a(bus),
+                    R16MemOperand::HLI => self.ld_to_hl_ind_inc_from_a(bus),
+                }
+            }
+            Instruction::LDFromImmIndToA16(imm) => self.ld_from_imm_ind_to_a(imm, bus),
+            Instruction::LDToImmIndFromA16(imm) => self.ld_to_imm_ind_from_a(imm, bus),
             Instruction::LDToAFromCInd() => self.ld_to_a_from_c_ind(bus),
             Instruction::LDFromAToCInd() => self.ld_from_a_to_c_ind(bus),
             Instruction::LDFromImmIndToA8(imm) => self.ld_from_imm_ind_to_a_8(imm, bus),
             Instruction::LDToImmIndFromA8(imm) => self.ld_to_imm_ind_from_a_8(imm, bus),
-            Instruction::LDFromHLIndDecToA() => self.ld_from_hl_ind_dec_to_a(bus),
-            Instruction::LDToHLIndDecFromA() => self.ld_to_hl_ind_dec_from_a(bus),
-            Instruction::LDFromHLIndIncToA() => self.ld_from_hl_ind_inc_to_a(bus),
-            Instruction::LDToHLIndIncFromA() => self.ld_to_hl_ind_inc_from_a(bus),
-            Instruction::LDImm16(register_to, imm) => self.ld_imm_16(register_to, imm),
+            Instruction::LDFromMemToA(r16mem_operand) => {
+                match r16mem_operand {
+                    R16MemOperand::BC => self.ld_from_bc_ind_to_a(bus),
+                    R16MemOperand::DE => self.ld_from_de_ind_to_a(bus),
+                    R16MemOperand::HLD => self.ld_from_hl_ind_dec_to_a(bus),
+                    R16MemOperand::HLI => self.ld_from_hl_ind_inc_to_a(bus),
+                }
+            }
+            Instruction::LDImm16(r16_operand, imm) => {
+                let register_16 = Register16::from_r16_operand(r16_operand);
+                self.ld_imm_16(register_16, imm)
+            }
             Instruction::LDToImmIndFromSP(imm) => self.ld_to_imm_ind_from_sp(imm, bus),
             Instruction::LDSPFromHL() => self.ld_sp_from_hl(),
-            Instruction::PUSH(register_from) => self.push(register_from, bus),
-            Instruction::POP(register_from) => self.pop(register_from, bus),
+            Instruction::PUSH(r16stk_operand) => {
+                let register_16 = Register16::from_r16stk_operand(r16stk_operand);
+                self.push(register_16, bus)
+            }
+            Instruction::POP(r16stk_operand) => {
+                let register_16 = Register16::from_r16stk_operand(r16stk_operand);
+                self.pop(register_16, bus)
+            }
             Instruction::LDHLFromAdjustedSP(imm) => self.ld_hl_from_adjusted_sp(imm),
-            Instruction::ADD(register) => self.add(register),
-            Instruction::ADDHLInd() => self.add_hl_ind(bus),
+            Instruction::ADD(r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.add_hl_ind(bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.add(register)
+                }
+            },
             Instruction::ADDImm(imm) => self.add_imm(imm),
-            Instruction::ADDC(register) => self.add_c(register),
-            Instruction::ADDCHLInd() => self.add_c_hl_ind(bus),
-            Instruction::ADDCImm(imm) => self.add_c_imm(imm),
-            Instruction::SUB(register) => self.sub(register),
-            Instruction::SUBHLInd() => self.sub_hl_ind(bus),
+            Instruction::ADC(r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.add_c_hl_ind(bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.add_c(register)
+                }
+            },
+            Instruction::ADCImm(imm) => self.add_c_imm(imm),
+            Instruction::SUB(r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.sub_hl_ind(bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.sub(register)
+                }
+            },
             Instruction::SUBImm(imm) => self.sub_imm(imm),
-            Instruction::SUBC(register) => self.sub_c(register),
-            Instruction::SUBCHLInd() => self.sub_c_hl_ind(bus),
-            Instruction::SUBCImm(imm) => self.sub_c_imm(imm),
-            Instruction::CP(register) => self.cp(register),
-            Instruction::CPHLInd() => self.cp_hl_ind(bus),
+            Instruction::SBC(r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.sub_c_hl_ind(bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.sub_c(register)
+                }
+            },
+            Instruction::SBCImm(imm) => self.sub_c_imm(imm),
+            Instruction::CP(r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.cp_hl_ind(bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.cp(register)
+                }
+            },
             Instruction::CPImm(imm) => self.cp_imm(imm),
-            Instruction::INC(register) => self.inc(register),
-            Instruction::INCHLInd() => self.inc_hl_ind(bus),
-            Instruction::DEC(register) => self.dec(register),
-            Instruction::DECHLInd() => self.dec_hl_ind(bus),
-            Instruction::AND(register) => self.and(register),
-            Instruction::ANDHLInd() => self.and_hl_ind(bus),
+            Instruction::INC8(r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.inc_hl_ind(bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.inc(register)
+                }
+            },
+            Instruction::DEC8(r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.dec_hl_ind(bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.dec(register)
+                }
+            },
+            Instruction::AND(r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.and_hl_ind(bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.and(register)
+                }
+            },
             Instruction::ANDImm(imm) => self.and_imm(imm),
-            Instruction::OR(register) => self.or(register),
-            Instruction::ORHLInd() => self.or_hl_ind(bus),
+            Instruction::OR(r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.or_hl_ind(bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.or(register)
+                }
+            },
             Instruction::ORImm(imm) => self.or_imm(imm),
-            Instruction::XOR(register) => self.xor(register),
-            Instruction::XORHLInd() => self.xor_hl_ind(bus),
+            Instruction::XOR(r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.xor_hl_ind(bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.xor(register)
+                }
+            },
             Instruction::XORImm(imm) => self.xor_imm(imm),
             Instruction::CCF() => self.ccf(),
             Instruction::SCF() => self.scf(),
             Instruction::DAA() => self.daa(),
             Instruction::CPL() => self.cpl(),
-            Instruction::INC16(register) => self.inc_16(register),
-            Instruction::DEC16(register) => self.dec_16(register),
-            Instruction::ADDHL(register) => self.add_hl(register),
+            Instruction::INC16(r16_operand) => {
+                let register_16 = Register16::from_r16_operand(r16_operand);
+                self.inc_16(register_16)
+            }
+            Instruction::DEC16(r16_operand) => {
+                let register_16 = Register16::from_r16_operand(r16_operand);
+                self.dec_16(register_16)
+            }
+            Instruction::ADDHL(r16_operand) => {
+                let register_16 = Register16::from_r16_operand(r16_operand);
+                self.add_hl(register_16)
+            }
             Instruction::ADDSPImm(imm) => self.add_sp_imm(imm),
             Instruction::RLCA() => self.rlca(),
             Instruction::RRCA() => self.rrca(),
             Instruction::RRA() => self.rra(),
             Instruction::RLA() => self.rla(),
-            Instruction::RLCR(register) => self.rlcr(register),
-            Instruction::RRCR(register) => self.rrcr(register),
-            Instruction::RLCHLInd() => self.rlc_hl_ind(bus),
-            Instruction::RRCHLInd() => self.rrc_hl_ind(bus),
-            Instruction::RLR(register) => self.rlr(register),
-            Instruction::RRR(register) => self.rrr(register),
-            Instruction::RLHLInd() => self.rl_hl_ind(bus),
-            Instruction::RRHLInd() => self.rr_hl_ind(bus),
-            Instruction::SRAR(register) => self.srar(register),
-            Instruction::SRAHLInd() => self.sra_hl_ind(bus),
-            Instruction::SLAR(register) => self.slar(register),
-            Instruction::SLAHLInd() => self.sla_hl_ind(bus),
-            Instruction::SRLR(register) => self.srlr(register),
-            Instruction::SRLHLInd() => self.srl_hl_ind(bus),
-            Instruction::SWAPR(register) => self.swapr(register),
-            Instruction::SWAPHLInd() => self.swap_hl_ind(bus),
-            Instruction::BITR(bit, register) => self.bitr(bit, register),
-            Instruction::BITHLInd(bit) => self.bit_hl_ind(bit, bus),
-            Instruction::SETR(bit, register) => self.setr(bit, register),
-            Instruction::SETHLInd(bit) => self.set_hl_ind(bit, bus),
-            Instruction::RESETR(bit, register) => self.resetr(bit, register),
-            Instruction::RESETHLInd(bit) => self.reset_hl_ind(bit, bus),
+            Instruction::RLC(r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.rlc_hl_ind(bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.rlcr(register)
+                }
+            },
+            Instruction::RRC(r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.rrc_hl_ind(bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.rrcr(register)
+                }
+            },
+            Instruction::RL(r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.rl_hl_ind(bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.rlr(register)
+                }
+            },
+            Instruction::RR(r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.rr_hl_ind(bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.rrr(register)
+                }
+            },
+            Instruction::SRA(r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.sra_hl_ind(bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.srar(register)
+                }
+            },
+            Instruction::SLA(r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.sla_hl_ind(bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.slar(register)
+                }
+            },
+            Instruction::SRL(r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.srl_hl_ind(bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.srlr(register)
+                }
+            },
+            Instruction::SWAP(r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.swap_hl_ind(bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.swapr(register)
+                }
+            },
+            Instruction::BIT(bit, r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.bit_hl_ind(bit, bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.bitr(bit, register)
+                }
+            },
+            Instruction::SET(bit, r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.set_hl_ind(bit, bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.setr(bit, register)
+                }
+            },
+            Instruction::RESET(bit, r8_operand) => match r8_operand {
+                R8Operand::HLInd => self.reset_hl_ind(bit, bus),
+                _ => {
+                    let register = Register::from_r8_operand(r8_operand);
+                    self.resetr(bit, register)
+                }
+            },
             Instruction::NOP() => self.nop(),
             Instruction::JP(addr) => self.jp(addr),
             Instruction::JPHL() => self.jp_hl(),
@@ -1227,7 +1361,6 @@ impl Cpu {
             Instruction::RETCC(cond) => self.ret_cc(cond, bus),
             Instruction::RETI() => self.ret_i(bus),
             Instruction::RST(addr) => self.rst(addr, bus),
-            Instruction::HALT() => self.halt(),
             Instruction::STOP() => self.stop(),
             Instruction::DI() => self.di(),
             Instruction::EI() => self.ei(),
@@ -1453,7 +1586,10 @@ mod tests {
             0b00_111_000 | R8Operand::HLInd.to_byte(),
         );
         assert_mem!(bus, hl_addr, 0b0110_0101);
-        assert!(cpu.get_flag(Flag::Carry), "SRL [HL] should set the carry flag");
+        assert!(
+            cpu.get_flag(Flag::Carry),
+            "SRL [HL] should set the carry flag"
+        );
     }
 
     #[test]
@@ -1470,7 +1606,10 @@ mod tests {
             0b00_001_000 | R8Operand::E.to_byte(),
         );
         assert_reg!(cpu, Register::E, 0b0111_1000);
-        assert!(!cpu.get_flag(Flag::Carry), "RRC on E should not set the carry flag");
+        assert!(
+            !cpu.get_flag(Flag::Carry),
+            "RRC on E should not set the carry flag"
+        );
 
         // Test RRC on bus pointed by HL.
         let hl_addr = cpu.get_register_16(Register16::HL);
@@ -1482,7 +1621,10 @@ mod tests {
             0b00_001_000 | R8Operand::HLInd.to_byte(),
         );
         assert_mem!(bus, hl_addr, 0b1111_0010);
-        assert!(cpu.get_flag(Flag::Carry), "RRC [HL] should set the carry flag");
+        assert!(
+            cpu.get_flag(Flag::Carry),
+            "RRC [HL] should set the carry flag"
+        );
     }
 
     #[test]
@@ -1499,7 +1641,10 @@ mod tests {
             0b00_000_000 | R8Operand::A.to_byte(),
         );
         assert_reg!(cpu, Register::A, 0b0001_1110);
-        assert!(!cpu.get_flag(Flag::Carry), "RLC on A should not set the carry flag");
+        assert!(
+            !cpu.get_flag(Flag::Carry),
+            "RLC on A should not set the carry flag"
+        );
 
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut bus, &cpu, 0b0010_1111);
@@ -1510,7 +1655,10 @@ mod tests {
             0b00_000_000 | R8Operand::HLInd.to_byte(),
         );
         assert_mem!(bus, hl_addr, 0b0101_1110);
-        assert!(!cpu.get_flag(Flag::Carry), "RLC [HL] should not set the carry flag");
+        assert!(
+            !cpu.get_flag(Flag::Carry),
+            "RLC [HL] should not set the carry flag"
+        );
     }
 
     #[test]
@@ -1528,7 +1676,11 @@ mod tests {
         );
         let original_lsb = (0b1111_0000 & 1) != 0;
         assert_reg!(cpu, Register::D, 0b1111_1000);
-        assert_eq!(cpu.get_flag(Flag::Carry), original_lsb, "SRA D carry flag mismatch");
+        assert_eq!(
+            cpu.get_flag(Flag::Carry),
+            original_lsb,
+            "SRA D carry flag mismatch"
+        );
 
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut bus, &cpu, 0b1110_0101);
@@ -1539,7 +1691,10 @@ mod tests {
             0b00_101_000 | R8Operand::HLInd.to_byte(),
         );
         assert_mem!(bus, hl_addr, 0b1111_0010);
-        assert!(cpu.get_flag(Flag::Carry), "SRA [HL] should set the carry flag");
+        assert!(
+            cpu.get_flag(Flag::Carry),
+            "SRA [HL] should set the carry flag"
+        );
     }
 
     #[test]
@@ -1557,7 +1712,11 @@ mod tests {
         );
         let original_msb = (0b1111_0000 & 0x80) != 0;
         assert_reg!(cpu, Register::E, 0b1110_0000);
-        assert_eq!(cpu.get_flag(Flag::Carry), original_msb, "SLA E carry flag mismatch");
+        assert_eq!(
+            cpu.get_flag(Flag::Carry),
+            original_msb,
+            "SLA E carry flag mismatch"
+        );
 
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut bus, &cpu, 0b0010_1011);
@@ -1568,7 +1727,10 @@ mod tests {
             0b00_100_000 | R8Operand::HLInd.to_byte(),
         );
         assert_mem!(bus, hl_addr, 0b0101_0110);
-        assert!(!cpu.get_flag(Flag::Carry), "SLA [HL] should not set the carry flag");
+        assert!(
+            !cpu.get_flag(Flag::Carry),
+            "SLA [HL] should not set the carry flag"
+        );
     }
 
     #[test]
@@ -1600,7 +1762,10 @@ mod tests {
             0b00_011_000 | R8Operand::HLInd.to_byte(),
         );
         assert_mem!(bus, hl_addr, 0b0111_0010);
-        assert!(cpu.get_flag(Flag::Carry), "RR [HL] should set the carry flag");
+        assert!(
+            cpu.get_flag(Flag::Carry),
+            "RR [HL] should set the carry flag"
+        );
     }
 
     #[test]

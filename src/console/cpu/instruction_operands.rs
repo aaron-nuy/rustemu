@@ -1,6 +1,6 @@
 use super::register::{Register, Register16};
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum R8Operand {
     B,
     C,
@@ -40,21 +40,9 @@ impl R8Operand {
         }
     }
 
-    pub fn to_byte_from_register(register: Register) -> u8 {
-        match register {
-            Register::B => 0,
-            Register::C => 1,
-            Register::D => 2,
-            Register::E => 3,
-            Register::H => 4,
-            Register::L => 5,
-            Register::A => 7,
-            Register::F => panic!("Attempting to construct R8Operand from F register")
-        }
-    }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum R16Operand {
     BC,
     DE,
@@ -81,19 +69,9 @@ impl R16Operand {
             R16Operand::SP => 3,
         }
     }
-
-    pub fn to_byte_from_register_16(register_16: Register16) -> u8 {
-        match register_16 {
-            Register16::BC => 0,
-            Register16::DE => 1,
-            Register16::HL => 2,
-            Register16::SP => 3,
-            Register16::AF | Register16::PC => panic!("Attempting to construct R16Operand from unsupported register")
-        }
-    }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum R16StkOperand {
     BC,
     DE,
@@ -120,19 +98,9 @@ impl R16StkOperand {
             R16StkOperand::AF => 3,
         }
     }
-
-    pub fn to_byte_from_register_16(register_16: Register16) -> u8 {
-        match register_16 {
-            Register16::BC => 0,
-            Register16::DE => 1,
-            Register16::HL => 2,
-            Register16::AF => 3,
-            Register16::SP | Register16::PC => panic!("Attempting to construct R16StkOperand from unsupported register")
-        }
-    }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum R16MemOperand {
     BC,
     DE,
@@ -161,7 +129,7 @@ impl R16MemOperand {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FlowCondition {
     NotZero,
     Zero,

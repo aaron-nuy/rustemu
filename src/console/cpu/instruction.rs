@@ -4,93 +4,63 @@ pub use crate::console::cpu::register::*;
 // TODO: Take InstructionOperands as parameter instead of registers
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Instruction {
-    LD(Register, Register),
-    LDImm(Register, u8),
-    LDFromHLInd(Register),
-    LDToHLInd(Register),
-    LDToHlIndImm(u8),
-    LDFromBCIndToA(),
-    LDFromDEIndToA(),
-    LDToBCIndFromA(),
-    LDToDEIndFromA(),
-    LDFromImmIndToA(u16),
-    LDToImmIndFromA(u16),
+    LD(R8Operand, R8Operand),
+    LDImm8(R8Operand, u8),
+    LDFromMemToA(R16MemOperand),
+    LDToMemFromA(R16MemOperand),
+    LDFromImmIndToA16(u16),
+    LDToImmIndFromA16(u16),
     LDToAFromCInd(),
     LDFromAToCInd(),
     LDFromImmIndToA8(u8),
     LDToImmIndFromA8(u8),
-    LDFromHLIndDecToA(),
-    LDToHLIndDecFromA(),
-    LDFromHLIndIncToA(),
-    LDToHLIndIncFromA(),
-    LDImm16(Register16, u16),
+    LDImm16(R16Operand, u16),
     LDToImmIndFromSP(u16),
     LDSPFromHL(),
-    PUSH(Register16),
-    POP(Register16),
+    PUSH(R16StkOperand),
+    POP(R16StkOperand),
     LDHLFromAdjustedSP(i8),
-    ADD(Register),
-    ADDHLInd(),
+    ADD(R8Operand),
     ADDImm(u8),
-    ADDC(Register),
-    ADDCHLInd(),
-    ADDCImm(u8),
-    SUB(Register),
-    SUBHLInd(),
+    ADC(R8Operand),
+    ADCImm(u8),
+    SUB(R8Operand),
     SUBImm(u8),
-    SUBC(Register),
-    SUBCHLInd(),
-    SUBCImm(u8),
-    CP(Register),
-    CPHLInd(),
+    SBC(R8Operand),
+    SBCImm(u8),
+    CP(R8Operand),
     CPImm(u8),
-    INC(Register),
-    INCHLInd(),
-    DEC(Register),
-    DECHLInd(),
-    AND(Register),
-    ANDHLInd(),
+    INC8(R8Operand),
+    DEC8(R8Operand),
+    AND(R8Operand),
     ANDImm(u8),
-    OR(Register),
-    ORHLInd(),
+    OR(R8Operand),
     ORImm(u8),
-    XOR(Register),
-    XORHLInd(),
+    XOR(R8Operand),
     XORImm(u8),
     CCF(),
     SCF(),
     DAA(),
     CPL(),
-    INC16(Register16),
-    DEC16(Register16),
-    ADDHL(Register16),
-    ADDSPImm(i8),
     RLCA(),
     RRCA(),
     RRA(),
     RLA(),
-    RLCR(Register),
-    RRCR(Register),
-    RLCHLInd(),
-    RRCHLInd(),
-    RLR(Register),
-    RLHLInd(),
-    RRR(Register),
-    RRHLInd(),
-    SRAR(Register),
-    SRAHLInd(),
-    SLAR(Register),
-    SLAHLInd(),
-    SRLR(Register),
-    SRLHLInd(),
-    SWAPR(Register),
-    SWAPHLInd(),
-    BITR(u8, Register),
-    BITHLInd(u8),
-    RESETR(u8, Register),
-    RESETHLInd(u8),
-    SETR(u8, Register),
-    SETHLInd(u8),
+    INC16(R16Operand),
+    DEC16(R16Operand),
+    ADDHL(R16Operand),
+    ADDSPImm(i8),
+    RLC(R8Operand),
+    RRC(R8Operand),
+    RL(R8Operand),
+    RR(R8Operand),
+    SRA(R8Operand),
+    SLA(R8Operand),
+    SRL(R8Operand),
+    SWAP(R8Operand),
+    BIT(u8, R8Operand),
+    RESET(u8, R8Operand),
+    SET(u8, R8Operand),
     NOP(),
     JP(u16),
     JPHL(),
@@ -126,85 +96,19 @@ impl Instruction {
 
         match (opcode & 0b11000000) >> 6 {
             0 => match (opcode & 0b00111000) >> 3 {
-                0 => match r8_operand {
-                    R8Operand::HLInd => (Instruction::RLCHLInd(), 2),
-                    _ => {
-                        let register = Register::from_r8_operand(r8_operand);
-                        (Instruction::RLCR(register), 2)
-                    }
-                },
-                1 => match r8_operand {
-                    R8Operand::HLInd => (Instruction::RRCHLInd(), 2),
-                    _ => {
-                        let register = Register::from_r8_operand(r8_operand);
-                        (Instruction::RRCR(register), 2)
-                    }
-                },
-                2 => match r8_operand {
-                    R8Operand::HLInd => (Instruction::RLHLInd(), 2),
-                    _ => {
-                        let register = Register::from_r8_operand(r8_operand);
-                        (Instruction::RLR(register), 2)
-                    }
-                },
-                3 => match r8_operand {
-                    R8Operand::HLInd => (Instruction::RRHLInd(), 2),
-                    _ => {
-                        let register = Register::from_r8_operand(r8_operand);
-                        (Instruction::RRR(register), 2)
-                    }
-                },
-                4 => match r8_operand {
-                    R8Operand::HLInd => (Instruction::SLAHLInd(), 2),
-                    _ => {
-                        let register = Register::from_r8_operand(r8_operand);
-                        (Instruction::SLAR(register), 2)
-                    }
-                },
-                5 => match r8_operand {
-                    R8Operand::HLInd => (Instruction::SRAHLInd(), 2),
-                    _ => {
-                        let register = Register::from_r8_operand(r8_operand);
-                        (Instruction::SRAR(register), 2)
-                    }
-                },
-                6 => match r8_operand {
-                    R8Operand::HLInd => (Instruction::SWAPHLInd(), 2),
-                    _ => {
-                        let register = Register::from_r8_operand(r8_operand);
-                        (Instruction::SWAPR(register), 2)
-                    }
-                },
-                7 => match r8_operand {
-                    R8Operand::HLInd => (Instruction::SRLHLInd(), 2),
-                    _ => {
-                        let register = Register::from_r8_operand(r8_operand);
-                        (Instruction::SRLR(register), 2)
-                    }
-                },
-                _ => panic!("Unknown CB instruction {}", opcode),
+                0 => (Instruction::RLC(r8_operand), 2),
+                1 => (Instruction::RRC(r8_operand), 2),
+                2 => (Instruction::RL(r8_operand), 2),
+                3 => (Instruction::RR(r8_operand), 2),
+                4 => (Instruction::SLA(r8_operand), 2),
+                5 => (Instruction::SRA(r8_operand), 2),
+                6 => (Instruction::SWAP(r8_operand), 2),
+                7 => (Instruction::SRL(r8_operand), 2),
+                _ => panic!("Unknown instruction: 0xCB {}", opcode),
             },
-            1 => match r8_operand {
-                R8Operand::HLInd => (Instruction::BITHLInd(bit_index), 2),
-                _ => {
-                    let register = Register::from_r8_operand(r8_operand);
-                    (Instruction::BITR(bit_index, register), 2)
-                }
-            },
-            2 => match r8_operand {
-                R8Operand::HLInd => (Instruction::RESETHLInd(bit_index), 2),
-                _ => {
-                    let register = Register::from_r8_operand(r8_operand);
-                    (Instruction::RESETR(bit_index, register), 2)
-                }
-            },
-            3 => match r8_operand {
-                R8Operand::HLInd => (Instruction::SETHLInd(bit_index), 2),
-                _ => {
-                    let register = Register::from_r8_operand(r8_operand);
-                    (Instruction::SETR(bit_index, register), 2)
-                }
-            },
+            1 => (Instruction::BIT(bit_index, r8_operand), 2),
+            2 => (Instruction::RESET(bit_index, r8_operand), 2),
+            3 => (Instruction::SET(bit_index, r8_operand), 2),
             _ => panic!("Unknown instruction: 0xCB {}", opcode),
         }
     }
@@ -241,84 +145,47 @@ impl Instruction {
             opcode if (opcode & 0b1100_0111) == 0b0000_0110 => {
                 let operand = (opcode & 0b0011_1000) >> 3;
                 let r8_operand = R8Operand::from_byte(operand);
-
-                match r8_operand {
-                    R8Operand::HLInd => (Instruction::LDToHlIndImm(imm_8), 2),
-                    _ => {
-                        let register = Register::from_r8_operand(r8_operand);
-                        (Instruction::LDImm(register, imm_8), 2)
-                    }
-                }
+                (Instruction::LDImm8(r8_operand, imm_8), 2)
             }
             opcode if (opcode & 0b1100_0111) == 0b0000_0100 => {
                 let operand = (opcode & 0b0011_1000) >> 3;
                 let r8_operand = R8Operand::from_byte(operand);
-
-                match r8_operand {
-                    R8Operand::HLInd => (Instruction::INCHLInd(), 1),
-                    _ => {
-                        let register = Register::from_r8_operand(r8_operand);
-                        (Instruction::INC(register), 1)
-                    }
-                }
+                (Instruction::INC8(r8_operand), 1)
             }
             opcode if (opcode & 0b1100_0111) == 0b0000_0101 => {
                 let operand = (opcode & 0b0011_1000) >> 3;
                 let r8_operand = R8Operand::from_byte(operand);
-
-                match r8_operand {
-                    R8Operand::HLInd => (Instruction::DECHLInd(), 1),
-                    _ => {
-                        let register = Register::from_r8_operand(r8_operand);
-                        (Instruction::DEC(register), 1)
-                    }
-                }
+                (Instruction::DEC8(r8_operand), 1)
             }
             opcode if (opcode & 0b1100_1111) == 0b0000_0011 => {
                 let operand = (opcode & 0b0011_0000) >> 4;
                 let r16_operand = R16Operand::from_byte(operand);
-                let register_16 = Register16::from_r16_operand(r16_operand);
-                (Instruction::INC16(register_16), 1)
+                (Instruction::INC16(r16_operand), 1)
             }
             opcode if (opcode & 0b1100_1111) == 0b0000_1011 => {
                 let operand = (opcode & 0b0011_0000) >> 4;
                 let r16_operand = R16Operand::from_byte(operand);
-                let register_16 = Register16::from_r16_operand(r16_operand);
-                (Instruction::DEC16(register_16), 1)
+                (Instruction::DEC16(r16_operand), 1)
             }
             opcode if (opcode & 0b1100_1111) == 0b0000_1001 => {
                 let operand = (opcode & 0b0011_0000) >> 4;
                 let r16_operand = R16Operand::from_byte(operand);
-                let register_16 = Register16::from_r16_operand(r16_operand);
-                (Instruction::ADDHL(register_16), 1)
+                (Instruction::ADDHL(r16_operand), 1)
             }
             opcode if (opcode & 0b1100_1111) == 0b0000_0001 => {
                 let operand = (opcode & 0b0011_0000) >> 4;
                 let r16_operand = R16Operand::from_byte(operand);
-                let register_16 = Register16::from_r16_operand(r16_operand);
-                (Instruction::LDImm16(register_16, imm_16), 3)
+                (Instruction::LDImm16(r16_operand, imm_16), 3)
             }
             opcode if (opcode & 0b1100_1111) == 0b0000_0010 => {
                 let operand = (opcode & 0b0011_0000) >> 4;
                 let r16mem_operand = R16MemOperand::from_byte(operand);
-
-                match r16mem_operand {
-                    R16MemOperand::BC => (Instruction::LDToBCIndFromA(), 1),
-                    R16MemOperand::DE => (Instruction::LDToDEIndFromA(), 1),
-                    R16MemOperand::HLI => (Instruction::LDToHLIndIncFromA(), 1),
-                    R16MemOperand::HLD => (Instruction::LDToHLIndDecFromA(), 1),
-                }
+                (Instruction::LDToMemFromA(r16mem_operand), 1)
             }
             opcode if (opcode & 0b1100_1111) == 0b0000_1010 => {
                 let operand = (opcode & 0b0011_0000) >> 4;
                 let r16mem_operand = R16MemOperand::from_byte(operand);
-
-                match r16mem_operand {
-                    R16MemOperand::BC => (Instruction::LDFromBCIndToA(), 1),
-                    R16MemOperand::DE => (Instruction::LDFromDEIndToA(), 1),
-                    R16MemOperand::HLI => (Instruction::LDFromHLIndIncToA(), 1),
-                    R16MemOperand::HLD => (Instruction::LDFromHLIndDecToA(), 1),
-                }
+                (Instruction::LDFromMemToA(r16mem_operand), 1)
             }
             _ => panic!(
                 "Unknown instruction Block Zero Hex: {:#x} | Binary: {:#b}",
@@ -338,19 +205,7 @@ impl Instruction {
             opcode if (opcode & 0b1100_0000) == 0b0100_0000 => {
                 match (r8_operand_dest.clone(), r8_operand_source.clone()) {
                     (R8Operand::HLInd, R8Operand::HLInd) => (Instruction::HALT(), 1),
-                    (R8Operand::HLInd, _) => {
-                        let register_source = Register::from_r8_operand(r8_operand_source);
-                        (Instruction::LDToHLInd(register_source), 1)
-                    }
-                    (_, R8Operand::HLInd) => {
-                        let register_dest = Register::from_r8_operand(r8_operand_dest);
-                        (Instruction::LDFromHLInd(register_dest), 1)
-                    }
-                    (_, _) => {
-                        let register_dest = Register::from_r8_operand(r8_operand_dest);
-                        let register_source = Register::from_r8_operand(r8_operand_source);
-                        (Instruction::LD(register_dest, register_source), 1)
-                    }
+                    (_, _) => (Instruction::LD(r8_operand_dest, r8_operand_source), 1),
                 }
             }
             _ => panic!(
@@ -365,62 +220,14 @@ impl Instruction {
         let r8_operand = R8Operand::from_byte(operand);
 
         match (opcode & 0b0111_1000) >> 3 {
-            0 => match r8_operand {
-                R8Operand::HLInd => (Instruction::ADDHLInd(), 1),
-                _ => {
-                    let register = Register::from_r8_operand(r8_operand);
-                    (Instruction::ADD(register), 1)
-                }
-            },
-            1 => match r8_operand {
-                R8Operand::HLInd => (Instruction::ADDCHLInd(), 1),
-                _ => {
-                    let register = Register::from_r8_operand(r8_operand);
-                    (Instruction::ADDC(register), 1)
-                }
-            },
-            2 => match r8_operand {
-                R8Operand::HLInd => (Instruction::SUBHLInd(), 1),
-                _ => {
-                    let register = Register::from_r8_operand(r8_operand);
-                    (Instruction::SUB(register), 1)
-                }
-            },
-            3 => match r8_operand {
-                R8Operand::HLInd => (Instruction::SUBCHLInd(), 1),
-                _ => {
-                    let register = Register::from_r8_operand(r8_operand);
-                    (Instruction::SUBC(register), 1)
-                }
-            },
-            4 => match r8_operand {
-                R8Operand::HLInd => (Instruction::ANDHLInd(), 1),
-                _ => {
-                    let register = Register::from_r8_operand(r8_operand);
-                    (Instruction::AND(register), 1)
-                }
-            },
-            5 => match r8_operand {
-                R8Operand::HLInd => (Instruction::XORHLInd(), 1),
-                _ => {
-                    let register = Register::from_r8_operand(r8_operand);
-                    (Instruction::XOR(register), 1)
-                }
-            },
-            6 => match r8_operand {
-                R8Operand::HLInd => (Instruction::ORHLInd(), 1),
-                _ => {
-                    let register = Register::from_r8_operand(r8_operand);
-                    (Instruction::OR(register), 1)
-                }
-            },
-            7 => match r8_operand {
-                R8Operand::HLInd => (Instruction::CPHLInd(), 1),
-                _ => {
-                    let register = Register::from_r8_operand(r8_operand);
-                    (Instruction::CP(register), 1)
-                }
-            },
+            0 => (Instruction::ADD(r8_operand), 1),
+            1 => (Instruction::ADC(r8_operand), 1),
+            2 => (Instruction::SUB(r8_operand), 1),
+            3 => (Instruction::SBC(r8_operand), 1),
+            4 => (Instruction::AND(r8_operand), 1),
+            5 => (Instruction::XOR(r8_operand), 1),
+            6 => (Instruction::OR(r8_operand), 1),
+            7 => (Instruction::CP(r8_operand), 1),
             _ => panic!(
                 "Unknown instruction Block Two Hex: {:#x} | Binary: {:#b}",
                 opcode, opcode
@@ -432,9 +239,9 @@ impl Instruction {
         match opcode {
             //Table 1
             0b1100_0110 => (Instruction::ADDImm(imm_8), 2),
-            0b1100_1110 => (Instruction::ADDCImm(imm_8), 2),
+            0b1100_1110 => (Instruction::ADCImm(imm_8), 2),
             0b1101_0110 => (Instruction::SUBImm(imm_8), 2),
-            0b1101_1110 => (Instruction::SUBCImm(imm_8), 2),
+            0b1101_1110 => (Instruction::SBCImm(imm_8), 2),
             0b1110_0110 => (Instruction::ANDImm(imm_8), 2),
             0b1110_1110 => (Instruction::XORImm(imm_8), 2),
             0b1111_0110 => (Instruction::ORImm(imm_8), 2),
@@ -472,24 +279,20 @@ impl Instruction {
             opcode if (opcode & 0b1100_1111) == 0b1100_0001 => {
                 let operand = (opcode & 0b0011_0000) >> 4;
                 let r16stk_operand = R16StkOperand::from_byte(operand);
-                let register_16 = Register16::from_r16stk_operand(r16stk_operand);
-
-                (Instruction::POP(register_16), 1)
+                (Instruction::POP(r16stk_operand), 1)
             }
             opcode if (opcode & 0b1100_1111) == 0b1100_0101 => {
                 let operand = (opcode & 0b0011_0000) >> 4;
                 let r16stk_operand = R16StkOperand::from_byte(operand);
-                let register_16 = Register16::from_r16stk_operand(r16stk_operand);
-
-                (Instruction::PUSH(register_16), 1)
+                (Instruction::PUSH(r16stk_operand), 1)
             }
             // Table 4
             0b1110_0010 => (Instruction::LDFromAToCInd(), 1),
             0b1110_0000 => (Instruction::LDToImmIndFromA8(imm_8), 2),
-            0b1110_1010 => (Instruction::LDToImmIndFromA(imm_16), 3),
+            0b1110_1010 => (Instruction::LDToImmIndFromA16(imm_16), 3),
             0b1111_0010 => (Instruction::LDToAFromCInd(), 1),
             0b1111_0000 => (Instruction::LDFromImmIndToA8(imm_8), 2),
-            0b1111_1010 => (Instruction::LDFromImmIndToA(imm_16), 3),
+            0b1111_1010 => (Instruction::LDFromImmIndToA16(imm_16), 3),
             // Table 5
             0b1110_1000 => (Instruction::ADDSPImm(imm_8 as i8), 2),
             0b1111_1000 => (Instruction::LDHLFromAdjustedSP(imm_8 as i8), 2),
@@ -505,88 +308,54 @@ impl Instruction {
     }
 
     pub fn encode(instruction: Instruction) -> [u8; 3] {
-        let hl_ind_r8_op_byte = R8Operand::HLInd.to_byte();
-
         match instruction {
             // CB
-            Instruction::RLCR(register) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::RLC(r8_operand) => {
+                let operand = r8_operand.to_byte();
                 [0xCB, (0b0000_0000 | operand), 0]
             }
-            Instruction::RRCR(register) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::RRC(r8_operand) => {
+                let operand = r8_operand.to_byte();
                 [0xCB, (0b0000_1000 | operand), 0]
             }
-            Instruction::RLR(register) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::RL(r8_operand) => {
+                let operand = r8_operand.to_byte();
                 [0xCB, (0b0001_0000 | operand), 0]
             }
-            Instruction::RRR(register) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::RR(r8_operand) => {
+                let operand = r8_operand.to_byte();
                 [0xCB, (0b0001_1000 | operand), 0]
             }
-            Instruction::SLAR(register) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::SLA(r8_operand) => {
+                let operand = r8_operand.to_byte();
                 [0xCB, (0b0010_0000 | operand), 0]
             }
-            Instruction::SRAR(register) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::SRA(r8_operand) => {
+                let operand = r8_operand.to_byte();
                 [0xCB, (0b0010_1000 | operand), 0]
             }
-            Instruction::SWAPR(register) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::SWAP(r8_operand) => {
+                let operand = r8_operand.to_byte();
                 [0xCB, (0b0011_0000 | operand), 0]
             }
-            Instruction::SRLR(register) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::SRL(r8_operand) => {
+                let operand = r8_operand.to_byte();
                 [0xCB, (0b0011_1000 | operand), 0]
             }
-            Instruction::RLCHLInd() => [0xCB, (0b0000_0000 | hl_ind_r8_op_byte), 0],
-            Instruction::RRCHLInd() => [0xCB, (0b0000_1000 | hl_ind_r8_op_byte), 0],
-            Instruction::RLHLInd() => [0xCB, (0b0001_0000 | hl_ind_r8_op_byte), 0],
-            Instruction::RRHLInd() => [0xCB, (0b0001_1000 | hl_ind_r8_op_byte), 0],
-            Instruction::SLAHLInd() => [0xCB, (0b0010_0000 | hl_ind_r8_op_byte), 0],
-            Instruction::SRAHLInd() => [0xCB, (0b0010_1000 | hl_ind_r8_op_byte), 0],
-            Instruction::SWAPHLInd() => [0xCB, (0b0011_0000 | hl_ind_r8_op_byte), 0],
-            Instruction::SRLHLInd() => [0xCB, (0b0011_1000 | hl_ind_r8_op_byte), 0],
-            Instruction::BITR(bit_index, register) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::BIT(bit_index, r8_operand) => {
+                let operand = r8_operand.to_byte();
                 let adjusted_bit_index = bit_index << 3;
                 [0xCB, (0b0100_0000 | adjusted_bit_index | operand), 0]
             }
-            Instruction::RESETR(bit_index, register) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::RESET(bit_index, r8_operand) => {
+                let operand = r8_operand.to_byte();
                 let adjusted_bit_index = bit_index << 3;
                 [0xCB, (0b1000_0000 | adjusted_bit_index | operand), 0]
             }
-            Instruction::SETR(bit_index, register) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::SET(bit_index, r8_operand) => {
+                let operand = r8_operand.to_byte();
                 let adjusted_bit_index = bit_index << 3;
                 [0xCB, (0b1100_0000 | adjusted_bit_index | operand), 0]
-            }
-            Instruction::BITHLInd(bit_index) => {
-                let adjusted_bit_index = bit_index << 3;
-                [
-                    0xCB,
-                    (0b0100_0000 | adjusted_bit_index | hl_ind_r8_op_byte),
-                    0,
-                ]
-            }
-            Instruction::RESETHLInd(bit_index) => {
-                let adjusted_bit_index = bit_index << 3;
-                [
-                    0xCB,
-                    (0b1000_0000 | adjusted_bit_index | hl_ind_r8_op_byte),
-                    0,
-                ]
-            }
-            Instruction::SETHLInd(bit_index) => {
-                let adjusted_bit_index = bit_index << 3;
-                [
-                    0xCB,
-                    (0b1100_0000 | adjusted_bit_index | hl_ind_r8_op_byte),
-                    0,
-                ]
             }
             // Block 0
             Instruction::NOP() => [0b0000_0000, 0, 0],
@@ -599,23 +368,13 @@ impl Instruction {
             Instruction::SCF() => [0b0011_0111, 0, 0],
             Instruction::CCF() => [0b0011_1111, 0, 0],
             Instruction::STOP() => [0b0001_0000, 0, 0],
-            Instruction::INC(register) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::INC8(r8_operand) => {
+                let operand = r8_operand.to_byte();
                 let instruction = 0b0000_0100 | (operand << 3);
                 [instruction, 0, 0]
             }
-            Instruction::DEC(register) => {
-                let operand = R8Operand::to_byte_from_register(register);
-                let instruction = 0b0000_0101 | (operand << 3);
-                [instruction, 0, 0]
-            }
-            Instruction::INCHLInd() => {
-                let operand = hl_ind_r8_op_byte;
-                let instruction = 0b0000_0100 | (operand << 3);
-                [instruction, 0, 0]
-            }
-            Instruction::DECHLInd() => {
-                let operand = hl_ind_r8_op_byte;
+            Instruction::DEC8(r8_operand) => {
+                let operand = r8_operand.to_byte();
                 let instruction = 0b0000_0101 | (operand << 3);
                 [instruction, 0, 0]
             }
@@ -625,18 +384,18 @@ impl Instruction {
                 let instruction = 0b0010_0000 | (operand << 3);
                 [instruction, imm_8 as u8, 0]
             }
-            Instruction::INC16(register_16) => {
-                let operand = R16Operand::to_byte_from_register_16(register_16);
+            Instruction::INC16(r16_operand) => {
+                let operand = r16_operand.to_byte();
                 let instruction = 0b0000_0011 | (operand << 4);
                 [instruction, 0, 0]
             }
-            Instruction::DEC16(register_16) => {
-                let operand = R16Operand::to_byte_from_register_16(register_16);
+            Instruction::DEC16(r16_operand) => {
+                let operand = r16_operand.to_byte();
                 let instruction = 0b0000_1011 | (operand << 4);
                 [instruction, 0, 0]
             }
-            Instruction::ADDHL(register_16) => {
-                let operand = R16Operand::to_byte_from_register_16(register_16);
+            Instruction::ADDHL(r16_operand) => {
+                let operand = r16_operand.to_byte();
                 let instruction = 0b0000_1001 | (operand << 4);
                 [instruction, 0, 0]
             }
@@ -645,120 +404,72 @@ impl Instruction {
                 let imm_bytes = imm_16.to_le_bytes();
                 [instruction, imm_bytes[0], imm_bytes[1]]
             }
-            Instruction::LDImm(register, imm_8) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::LDImm8(r8_operand, imm_8) => {
+                let operand = r8_operand.to_byte();
                 let instruction = 0b0000_0110 | (operand << 3);
                 [instruction, imm_8, 0]
             }
-            Instruction::LDToHlIndImm(imm_8) => {
-                let operand = hl_ind_r8_op_byte;
-                let instruction = 0b0000_0110 | (operand << 3);
-                [instruction, imm_8, 0]
-            }
-            Instruction::LDImm16(register_16, imm_16) => {
-                let operand = R16Operand::to_byte_from_register_16(register_16);
+            Instruction::LDImm16(r16_operand, imm_16) => {
+                let operand = r16_operand.to_byte();
                 let instruction = 0b0000_0001 | (operand << 4);
                 let imm_bytes = imm_16.to_le_bytes();
                 [instruction, imm_bytes[0], imm_bytes[1]]
             }
-            Instruction::LDToBCIndFromA() => {
-                let operand = R16MemOperand::BC.to_byte();
+            Instruction::LDToMemFromA(r16mem_opernad) => {
+                let operand = r16mem_opernad.to_byte();
                 let instruction = 0b0000_0010 | (operand << 4);
                 [instruction, 0, 0]
             }
-            Instruction::LDToDEIndFromA() => {
-                let operand = R16MemOperand::DE.to_byte();
-                let instruction = 0b0000_0010 | (operand << 4);
-                [instruction, 0, 0]
-            }
-            Instruction::LDToHLIndIncFromA() => {
-                let operand = R16MemOperand::HLI.to_byte();
-                let instruction = 0b0000_0010 | (operand << 4);
-                [instruction, 0, 0]
-            }
-            Instruction::LDToHLIndDecFromA() => {
-                let operand = R16MemOperand::HLD.to_byte();
-                let instruction = 0b0000_0010 | (operand << 4);
-                [instruction, 0, 0]
-            }
-            Instruction::LDFromBCIndToA() => {
-                let operand = R16MemOperand::BC.to_byte();
-                let instruction = 0b0000_1010 | (operand << 4);
-                [instruction, 0, 0]
-            }
-            Instruction::LDFromDEIndToA() => {
-                let operand = R16MemOperand::DE.to_byte();
-                let instruction = 0b0000_1010 | (operand << 4);
-                [instruction, 0, 0]
-            }
-            Instruction::LDFromHLIndIncToA() => {
-                let operand = R16MemOperand::HLI.to_byte();
-                let instruction = 0b0000_1010 | (operand << 4);
-                [instruction, 0, 0]
-            }
-            Instruction::LDFromHLIndDecToA() => {
-                let operand = R16MemOperand::HLD.to_byte();
+            Instruction::LDFromMemToA(r16mem_opernad) => {
+                let operand = r16mem_opernad.to_byte();
                 let instruction = 0b0000_1010 | (operand << 4);
                 [instruction, 0, 0]
             }
             // Block 1
             Instruction::HALT() => [0b0111_0110, 0, 0],
-            Instruction::LD(register_dest, register_source) => {
-                let operand_dest = R8Operand::to_byte_from_register(register_dest);
-                let operand_source = R8Operand::to_byte_from_register(register_source);
-                [0b0100_0000 | (operand_dest << 3) | operand_source, 0, 0]
-            }
-            Instruction::LDToHLInd(register_source) => {
-                let operand_dest = hl_ind_r8_op_byte;
-                let operand_source = R8Operand::to_byte_from_register(register_source);
+            Instruction::LD(r8_operand_dest, r8_operand_source) => {
+                let operand_dest = r8_operand_dest.to_byte();
+                let operand_source = r8_operand_source.to_byte();
                 [0b0100_0000 | (operand_dest << 3) | operand_source, 0, 0]
             }
             // Block 2
-            Instruction::ADD(register) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::ADD(r8_operand) => {
+                let operand = r8_operand.to_byte();
                 [(0b1000_0000 | operand), 0, 0]
             }
-            Instruction::ADDC(register) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::ADC(r8_operand) => {
+                let operand = r8_operand.to_byte();
                 [(0b1000_1000 | operand), 0, 0]
             }
-            Instruction::SUB(register) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::SUB(r8_operand) => {
+                let operand = r8_operand.to_byte();
                 [(0b1001_0000 | operand), 0, 0]
             }
-            Instruction::SUBC(register) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::SBC(r8_operand) => {
+                let operand = r8_operand.to_byte();
                 [(0b1001_1000 | operand), 0, 0]
             }
-            Instruction::AND(register) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::AND(r8_operand) => {
+                let operand = r8_operand.to_byte();
                 [(0b1010_0000 | operand), 0, 0]
             }
-            Instruction::XOR(register) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::XOR(r8_operand) => {
+                let operand = r8_operand.to_byte();
                 [(0b1010_1000 | operand), 0, 0]
             }
-            Instruction::OR(register) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::OR(r8_operand) => {
+                let operand = r8_operand.to_byte();
                 [(0b1011_0000 | operand), 0, 0]
             }
-            Instruction::CP(register) => {
-                let operand = R8Operand::to_byte_from_register(register);
+            Instruction::CP(r8_operand) => {
+                let operand = r8_operand.to_byte();
                 [(0b1011_1000 | operand), 0, 0]
             }
-            Instruction::ADDHLInd() => [(0b1000_0000 | hl_ind_r8_op_byte), 0, 0],
-            Instruction::ADDCHLInd() => [(0b1000_1000 | hl_ind_r8_op_byte), 0, 0],
-            Instruction::SUBHLInd() => [(0b1001_0000 | hl_ind_r8_op_byte), 0, 0],
-            Instruction::SUBCHLInd() => [(0b1001_1000 | hl_ind_r8_op_byte), 0, 0],
-            Instruction::ANDHLInd() => [(0b1010_0000 | hl_ind_r8_op_byte), 0, 0],
-            Instruction::XORHLInd() => [(0b1010_1000 | hl_ind_r8_op_byte), 0, 0],
-            Instruction::ORHLInd() => [(0b1011_0000 | hl_ind_r8_op_byte), 0, 0],
-            Instruction::CPHLInd() => [(0b1011_1000 | hl_ind_r8_op_byte), 0, 0],
             // Block 3
             Instruction::ADDImm(imm_8) => [0b1100_0110, imm_8, 0],
-            Instruction::ADDCImm(imm_8) => [0b1100_1110, imm_8, 0],
+            Instruction::ADCImm(imm_8) => [0b1100_1110, imm_8, 0],
             Instruction::SUBImm(imm_8) => [0b1101_0110, imm_8, 0],
-            Instruction::SUBCImm(imm_8) => [0b1101_1110, imm_8, 0],
+            Instruction::SBCImm(imm_8) => [0b1101_1110, imm_8, 0],
             Instruction::ANDImm(imm_8) => [0b1110_0110, imm_8, 0],
             Instruction::XORImm(imm_8) => [0b1110_1110, imm_8, 0],
             Instruction::ORImm(imm_8) => [0b1111_0110, imm_8, 0],
@@ -775,12 +486,12 @@ impl Instruction {
             Instruction::LDToAFromCInd() => [0b1111_0010, 0, 0],
             Instruction::LDFromImmIndToA8(imm_8) => [0b1111_0000, imm_8, 0],
             Instruction::JPHL() => [0b1110_1001, 0, 0],
-            Instruction::LDToImmIndFromA(imm_16) => [
+            Instruction::LDToImmIndFromA16(imm_16) => [
                 0b1110_1010,
                 imm_16.to_le_bytes()[0],
                 imm_16.to_le_bytes()[1],
             ],
-            Instruction::LDFromImmIndToA(imm_16) => [
+            Instruction::LDFromImmIndToA16(imm_16) => [
                 0b1111_1010,
                 imm_16.to_le_bytes()[0],
                 imm_16.to_le_bytes()[1],
@@ -819,15 +530,14 @@ impl Instruction {
                     imm_16.to_le_bytes()[1],
                 ]
             }
-            Instruction::POP(register_16) => {
-                let operand = R16StkOperand::to_byte_from_register_16(register_16) << 4;
+            Instruction::POP(r16stk_operand) => {
+                let operand = r16stk_operand.to_byte() << 4;
                 [0b1100_0001 | operand, 0, 0]
             }
-            Instruction::PUSH(register_16) => {
-                let operand = R16StkOperand::to_byte_from_register_16(register_16) << 4;
+            Instruction::PUSH(r16stk_operand) => {
+                let operand = r16stk_operand.to_byte() << 4;
                 [0b1100_0101 | operand, 0, 0]
             }
-            _ => panic!("Not Block 3 instruction"),
         }
     }
 }
@@ -838,7 +548,6 @@ mod tests {
     use crate::console::cpu::instruction::Instruction;
     use crate::console::cpu::instruction::Instruction::*;
     use crate::console::cpu::instruction_operands::*;
-    use crate::console::cpu::register::*;
 
     fn assert_decode(instruction: Instruction, expected_size: u16) {
         let [byte1, byte2, byte3] = Instruction::encode(instruction.clone());
@@ -860,25 +569,26 @@ mod tests {
         let expected_size = 2;
 
         let operands_r8 = [
-            Register::A,
-            Register::B,
-            Register::C,
-            Register::D,
-            Register::E,
-            Register::H,
-            Register::L,
+            R8Operand::A,
+            R8Operand::B,
+            R8Operand::C,
+            R8Operand::D,
+            R8Operand::E,
+            R8Operand::H,
+            R8Operand::L,
+            R8Operand::HLInd,
         ];
 
-        for reg in operands_r8 {
+        for operand in &operands_r8 {
             let instructions = [
-                RLCR(reg.clone()),
-                RRCR(reg.clone()),
-                RLR(reg.clone()),
-                RRR(reg.clone()),
-                SLAR(reg.clone()),
-                SRAR(reg.clone()),
-                SWAPR(reg.clone()),
-                SRLR(reg.clone()),
+                RLC(operand.clone()),
+                RRC(operand.clone()),
+                RL(operand.clone()),
+                RR(operand.clone()),
+                SLA(operand.clone()),
+                SRA(operand.clone()),
+                SWAP(operand.clone()),
+                SRL(operand.clone()),
             ];
 
             for instruction in instructions {
@@ -886,52 +596,17 @@ mod tests {
             }
         }
 
-        let instructions = [
-            RLCHLInd(),
-            RRCHLInd(),
-            RLHLInd(),
-            RRHLInd(),
-            SLAHLInd(),
-            SRAHLInd(),
-            SWAPHLInd(),
-            SRLHLInd(),
-        ];
-
-        for instruction in instructions {
-            assert_decode(instruction, expected_size);
-        }
-
-        let operands_r8 = [
-            Register::A,
-            Register::B,
-            Register::C,
-            Register::D,
-            Register::E,
-            Register::H,
-            Register::L,
-        ];
-
         for bit_index in 0..=7 {
-            for reg in &operands_r8 {
+            for operand in &operands_r8 {
                 let instructions = [
-                    BITR(bit_index, reg.clone()),
-                    SETR(bit_index, reg.clone()),
-                    RESETR(bit_index, reg.clone()),
+                    BIT(bit_index, operand.clone()),
+                    SET(bit_index, operand.clone()),
+                    RESET(bit_index, operand.clone()),
                 ];
 
                 for instruction in instructions {
                     assert_decode(instruction, expected_size);
                 }
-            }
-
-            let instructions = [
-                BITHLInd(bit_index),
-                SETHLInd(bit_index),
-                RESETHLInd(bit_index),
-            ];
-
-            for instruction in instructions {
-                assert_decode(instruction, expected_size);
             }
         }
     }
@@ -965,24 +640,11 @@ mod tests {
             for operand in 0..=7 {
                 let r8_operand = R8Operand::from_byte(operand);
 
-                match r8_operand {
-                    R8Operand::HLInd => {
-                        let instruction = INCHLInd();
-                        assert_decode(instruction, expected_size);
+                let instruction = INC8(r8_operand.clone());
+                assert_decode(instruction, expected_size);
 
-                        let instruction = DECHLInd();
-                        assert_decode(instruction, expected_size);
-                    }
-                    _ => {
-                        let register = Register::from_r8_operand(r8_operand);
-
-                        let instruction = INC(register.clone());
-                        assert_decode(instruction, expected_size);
-
-                        let instruction = DEC(register);
-                        assert_decode(instruction, expected_size);
-                    }
-                }
+                let instruction = DEC8(r8_operand);
+                assert_decode(instruction, expected_size);
             }
         }
 
@@ -998,19 +660,8 @@ mod tests {
             for operand in 0..=7 {
                 let r8_operand = R8Operand::from_byte(operand);
 
-                match r8_operand {
-                    R8Operand::HLInd => {
-                        let random_u8: u8 = 233;
-                        let instruction = LDToHlIndImm(random_u8);
-                        assert_decode(instruction, expected_size);
-                    }
-                    _ => {
-                        let register = Register::from_r8_operand(r8_operand);
-                        let random_u8: u8 = 201;
-                        let instruction = LDImm(register.clone(), random_u8);
-                        assert_decode(instruction, expected_size);
-                    }
-                }
+                let instruction = LDImm8(r8_operand, 239);
+                assert_decode(instruction, expected_size);
             }
         }
 
@@ -1038,12 +689,11 @@ mod tests {
 
             for operand in 0..=3 {
                 let r16_operand = R16Operand::from_byte(operand);
-                let register_16 = Register16::from_r16_operand(r16_operand);
 
                 let instructions = [
-                    INC16(register_16.clone()),
-                    DEC16(register_16.clone()),
-                    ADDHL(register_16.clone()),
+                    INC16(r16_operand.clone()),
+                    DEC16(r16_operand.clone()),
+                    ADDHL(r16_operand.clone()),
                 ];
 
                 for instruction in instructions {
@@ -1058,9 +708,8 @@ mod tests {
 
             for operand in 0..=3 {
                 let r16_operand = R16Operand::from_byte(operand);
-                let register_16 = Register16::from_r16_operand(r16_operand);
 
-                let instruction = LDImm16(register_16, 32450);
+                let instruction = LDImm16(r16_operand, 32450);
                 assert_decode(instruction, expected_size);
             }
 
@@ -1072,29 +721,16 @@ mod tests {
         {
             let expected_size = 1;
 
-            let instruction = LDToBCIndFromA();
-            assert_decode(instruction, expected_size);
 
-            let instruction = LDToDEIndFromA();
-            assert_decode(instruction, expected_size);
+            for operand in 0..=3 {
+                let r16mem_operand = R16MemOperand::from_byte(operand);
 
-            let instruction = LDToHLIndIncFromA();
-            assert_decode(instruction, expected_size);
+                let instruction = LDToMemFromA(r16mem_operand.clone());
+                assert_decode(instruction, expected_size);
 
-            let instruction = LDToHLIndDecFromA();
-            assert_decode(instruction, expected_size);
-
-            let instruction = LDFromBCIndToA();
-            assert_decode(instruction, expected_size);
-
-            let instruction = LDFromDEIndToA();
-            assert_decode(instruction, expected_size);
-
-            let instruction = LDFromHLIndIncToA();
-            assert_decode(instruction, expected_size);
-
-            let instruction = LDFromHLIndDecToA();
-            assert_decode(instruction, expected_size);
+                let instruction = LDFromMemToA(r16mem_operand);
+                assert_decode(instruction, expected_size);
+            }
         }
     }
 
@@ -1103,30 +739,30 @@ mod tests {
         let expected_size = 1;
 
         let operands_r8 = [
-            Register::A,
-            Register::B,
-            Register::C,
-            Register::D,
-            Register::E,
-            Register::H,
-            Register::L,
+            R8Operand::A,
+            R8Operand::B,
+            R8Operand::C,
+            R8Operand::D,
+            R8Operand::E,
+            R8Operand::H,
+            R8Operand::L,
+            R8Operand::HLInd,
         ];
 
         for register_source in &operands_r8 {
             for register_dest in &operands_r8 {
-                let instruction = LD(register_dest.clone(), register_source.clone());
-                let [instruction_byte, byte1, byte2] = Instruction::encode(instruction.clone());
-                assert_decode(instruction, expected_size);
+                match (register_source, register_dest) {
+                    (R8Operand::HLInd, R8Operand::HLInd) => {
+                        let instruction = HALT();
+                        assert_decode(instruction, expected_size);
+                    }
+                    _ => {
+                        let instruction = LD(register_dest.clone(), register_source.clone());
+                        assert_decode(instruction, expected_size);
+                    }
+                }
             }
-
-            let instruction = LDToHLInd(register_source.clone());
-            let [instruction_byte, byte1, byte2] = Instruction::encode(instruction.clone());
-            assert_decode(instruction, expected_size);
         }
-
-        let instruction = HALT();
-        let [instruction_byte, byte1, byte2] = Instruction::encode(instruction.clone());
-        assert_decode(instruction, expected_size);
     }
 
     #[test]
@@ -1134,19 +770,20 @@ mod tests {
         let expected_size = 1;
 
         let operands_r8 = [
-            Register::A,
-            Register::B,
-            Register::C,
-            Register::D,
-            Register::E,
-            Register::H,
-            Register::L,
+            R8Operand::A,
+            R8Operand::B,
+            R8Operand::C,
+            R8Operand::D,
+            R8Operand::E,
+            R8Operand::H,
+            R8Operand::L,
+            R8Operand::HLInd,
         ];
 
         for reg in operands_r8 {
             let instructions = [
                 ADD(reg.clone()),
-                ADDC(reg.clone()),
+                ADC(reg.clone()),
                 SUB(reg.clone()),
                 SUB(reg.clone()),
                 AND(reg.clone()),
@@ -1158,21 +795,6 @@ mod tests {
             for instruction in instructions {
                 assert_decode(instruction, expected_size);
             }
-        }
-
-        let instructions = [
-            ADDHLInd(),
-            ADDCHLInd(),
-            SUBHLInd(),
-            SUBCHLInd(),
-            ANDHLInd(),
-            XORHLInd(),
-            ORHLInd(),
-            CPHLInd(),
-        ];
-
-        for instruction in instructions {
-            assert_decode(instruction, expected_size);
         }
     }
 
@@ -1206,9 +828,9 @@ mod tests {
             for number in numbers {
                 let instructions = [
                     ADDImm(number),
-                    ADDCImm(number),
+                    ADCImm(number),
                     SUBImm(number),
-                    SUBCImm(number),
+                    SBCImm(number),
                     ANDImm(number),
                     ORImm(number),
                     XORImm(number),
@@ -1231,9 +853,8 @@ mod tests {
 
             for operand in 0..=3 {
                 let r16stk_operand = R16StkOperand::from_byte(operand);
-                let register_16 = Register16::from_r16stk_operand(r16stk_operand);
 
-                let instructions = [POP(register_16.clone()), PUSH(register_16.clone())];
+                let instructions = [POP(r16stk_operand.clone()), PUSH(r16stk_operand.clone())];
 
                 for instruction in instructions {
                     assert_decode(instruction, expected_size);
@@ -1273,15 +894,15 @@ mod tests {
             }
         }
 
-        // 16-bit cond
+        // 16-bit
         {
             let expected_size = 3;
 
             let instructions = [
                 JP(33402),
                 CALL(10490),
-                LDFromImmIndToA(23400),
-                LDToImmIndFromA(23400),
+                LDFromImmIndToA16(23400),
+                LDToImmIndFromA16(10000),
             ];
 
             for instruction in instructions {
