@@ -635,7 +635,7 @@ impl Cpu {
         let mut carry = self.get_flag(Flag::Carry);
 
         let mut adjust = 0;
-        let mut new_value: u8 = 0;
+        let new_value: u8;
         if !current_sub {
             if current_half_carry || self.a & 0x0f > 9 {
                 adjust |= 0x06;
@@ -1137,28 +1137,24 @@ impl Cpu {
                     self.ld_imm(register, imm)
                 }
             },
-            Instruction::LDToMemFromA(r16mem_operand) => {
-                match r16mem_operand {
-                    R16MemOperand::BC => self.ld_to_bc_ind_from_a(bus),
-                    R16MemOperand::DE => self.ld_to_de_ind_from_a(bus),
-                    R16MemOperand::HLD => self.ld_to_hl_ind_dec_from_a(bus),
-                    R16MemOperand::HLI => self.ld_to_hl_ind_inc_from_a(bus),
-                }
-            }
+            Instruction::LDToMemFromA(r16mem_operand) => match r16mem_operand {
+                R16MemOperand::BC => self.ld_to_bc_ind_from_a(bus),
+                R16MemOperand::DE => self.ld_to_de_ind_from_a(bus),
+                R16MemOperand::HLD => self.ld_to_hl_ind_dec_from_a(bus),
+                R16MemOperand::HLI => self.ld_to_hl_ind_inc_from_a(bus),
+            },
             Instruction::LDFromImmIndToA16(imm) => self.ld_from_imm_ind_to_a(imm, bus),
             Instruction::LDToImmIndFromA16(imm) => self.ld_to_imm_ind_from_a(imm, bus),
             Instruction::LDToAFromCInd() => self.ld_to_a_from_c_ind(bus),
             Instruction::LDFromAToCInd() => self.ld_from_a_to_c_ind(bus),
             Instruction::LDFromImmIndToA8(imm) => self.ld_from_imm_ind_to_a_8(imm, bus),
             Instruction::LDToImmIndFromA8(imm) => self.ld_to_imm_ind_from_a_8(imm, bus),
-            Instruction::LDFromMemToA(r16mem_operand) => {
-                match r16mem_operand {
-                    R16MemOperand::BC => self.ld_from_bc_ind_to_a(bus),
-                    R16MemOperand::DE => self.ld_from_de_ind_to_a(bus),
-                    R16MemOperand::HLD => self.ld_from_hl_ind_dec_to_a(bus),
-                    R16MemOperand::HLI => self.ld_from_hl_ind_inc_to_a(bus),
-                }
-            }
+            Instruction::LDFromMemToA(r16mem_operand) => match r16mem_operand {
+                R16MemOperand::BC => self.ld_from_bc_ind_to_a(bus),
+                R16MemOperand::DE => self.ld_from_de_ind_to_a(bus),
+                R16MemOperand::HLD => self.ld_from_hl_ind_dec_to_a(bus),
+                R16MemOperand::HLI => self.ld_from_hl_ind_inc_to_a(bus),
+            },
             Instruction::LDImm16(r16_operand, imm) => {
                 let register_16 = Register16::from_r16_operand(r16_operand);
                 self.ld_imm_16(register_16, imm)
@@ -1371,19 +1367,36 @@ impl Cpu {
 
 #[cfg(test)]
 mod tests {
-    use crate::console::cpu::cpu::*;
     use crate::console::cpu::instruction::R8Operand;
+    use crate::console::cpu::cpu::*;
 
-    fn execute_cb_instruction(cpu: &mut Cpu, bus: &mut Bus, offset: &mut u16, subopcode: u8) {
-        bus.write_to_8b(*offset, 0xcb);
-        bus.write_to_8b(*offset + 1, subopcode);
-        *offset += 2;
-        cpu.clock(bus);
+    fn execute_instruction(
+        instruction: Instruction,
+        instruction_size: u8,
+        cpu: &mut Cpu,
+        bus: &mut Bus,
+    ) {
+        cpu.step(instruction_size as u16);
+
+        let cycles = cpu.execute(instruction, bus);
+
+        cpu.clock = cpu.clock.wrapping_add(cycles);
     }
 
     fn preload_hl(bus: &mut Bus, cpu: &Cpu, value: u8) {
         let hl_addr = cpu.get_register_16(Register16::HL);
         bus.write_to_8b(hl_addr, value);
+    }
+
+    fn assert_flag(flag: Flag, expected_value: bool, instruction: Instruction, cpu: &Cpu) {
+        let flag_value = cpu.get_flag(flag);
+        assert_eq!(
+            flag_value,
+            expected_value,
+            "{} gave out wrong {} value",
+            stringify!(instruction),
+            stringify!(flag)
+        );
     }
 
     macro_rules! assert_reg {
@@ -1414,40 +1427,25 @@ mod tests {
     fn test_cb_set_operations() {
         let mut cpu = Cpu::new();
         let mut bus = Bus::new();
-        let mut offset: u16 = 0;
+        let instruction_size = 2;
 
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b11_001_000 | R8Operand::E.to_byte(),
-        );
+        let instruction = Instruction::SET(1, R8Operand::E);
+        execute_instruction(instruction.clone(), instruction_size, &mut cpu, &mut bus);
         assert_reg!(cpu, Register::E, 0b0000_0010);
 
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b11_000_000 | R8Operand::D.to_byte(),
-        );
+        let instruction = Instruction::SET(0, R8Operand::D);
+        execute_instruction(instruction.clone(), instruction_size, &mut cpu, &mut bus);
         assert_reg!(cpu, Register::D, 0b0000_0001);
 
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b11_011_000 | R8Operand::A.to_byte(),
-        );
+        let instruction = Instruction::SET(3, R8Operand::A);
+        execute_instruction(instruction.clone(), instruction_size, &mut cpu, &mut bus);
         assert_reg!(cpu, Register::A, 0b0000_1000);
 
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut bus, &cpu, 0xcb);
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b11_010_000 | R8Operand::HLInd.to_byte(),
-        );
+
+        let instruction = Instruction::SET(2, R8Operand::HLInd);
+        execute_instruction(instruction.clone(), instruction_size, &mut cpu, &mut bus);
         assert_mem!(bus, hl_addr, 0xcb | 0b0000_0100);
 
         // Ensure other registers remain unchanged.
@@ -1460,31 +1458,21 @@ mod tests {
     fn test_cb_res_operations() {
         let mut cpu = Cpu::new();
         let mut bus = Bus::new();
-        let mut offset: u16 = 0;
+        let instruction_size = 2;
 
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b11_001_000 | R8Operand::E.to_byte(),
-        );
+        let set_instruction = Instruction::SET(1, R8Operand::E);
+        execute_instruction(set_instruction.clone(), instruction_size, &mut cpu, &mut bus);
         assert_reg!(cpu, Register::E, 0b0000_0010);
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b10_001_000 | R8Operand::E.to_byte(),
-        );
+
+        let res_instruction = Instruction::RESET(1, R8Operand::E);
+        execute_instruction(res_instruction.clone(), instruction_size, &mut cpu, &mut bus);
         assert_reg!(cpu, Register::E, 0);
 
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut bus, &cpu, 0xcb);
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b10_011_000 | R8Operand::HLInd.to_byte(),
-        );
+
+        let res_instruction = Instruction::RESET(3, R8Operand::HLInd);
+        execute_instruction(res_instruction.clone(), instruction_size, &mut cpu, &mut bus);
         assert_mem!(bus, hl_addr, 0xc3);
     }
 
@@ -1492,68 +1480,42 @@ mod tests {
     fn test_cb_bit_operations() {
         let mut cpu = Cpu::new();
         let mut bus = Bus::new();
-        let mut offset: u16 = 0;
+        let instruction_size = 2;
 
         cpu.set_register(Register::C, 0b0010_0000);
 
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b01_001_000 | R8Operand::C.to_byte(),
-        );
-        assert!(
-            cpu.get_flag(Flag::Zero),
-            "BIT 1 in C should set the zero flag"
-        );
+        let bit_instruction = Instruction::BIT(1, R8Operand::C);
+        execute_instruction(bit_instruction.clone(), instruction_size, &mut cpu, &mut bus);
+        assert!(cpu.get_flag(Flag::Zero), "BIT 1 in C should set the zero flag");
 
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b01_101_000 | R8Operand::C.to_byte(),
-        );
-        assert!(
-            !cpu.get_flag(Flag::Zero),
-            "BIT 5 in C should reset the zero flag"
-        );
+        let bit_instruction = Instruction::BIT(5, R8Operand::C);
+        execute_instruction(bit_instruction.clone(), instruction_size, &mut cpu, &mut bus);
+        assert!(!cpu.get_flag(Flag::Zero), "BIT 5 in C should reset the zero flag");
 
         preload_hl(&mut bus, &cpu, 0b0000_1000);
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b01_011_000 | R8Operand::HLInd.to_byte(),
-        );
-        assert!(
-            !cpu.get_flag(Flag::Zero),
-            "BIT 3 in [HL] should reset the zero flag"
-        );
+
+        let bit_instruction = Instruction::BIT(3, R8Operand::HLInd);
+        execute_instruction(bit_instruction.clone(), instruction_size, &mut cpu, &mut bus);
+        assert!(!cpu.get_flag(Flag::Zero), "BIT 3 in [HL] should reset the zero flag");
     }
 
     #[test]
     fn test_cb_swap_operations() {
         let mut cpu = Cpu::new();
         let mut bus = Bus::new();
-        let mut offset: u16 = 0;
+        let instruction_size = 2;
 
         cpu.set_register(Register::E, 0b1111_0000);
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b00_110_000 | R8Operand::E.to_byte(),
-        );
+
+        let swap_instruction = Instruction::SWAP(R8Operand::E);
+        execute_instruction(swap_instruction.clone(), instruction_size, &mut cpu, &mut bus);
         assert_reg!(cpu, Register::E, 0b0000_1111);
 
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut bus, &cpu, 0xcb);
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b00_110_000 | R8Operand::HLInd.to_byte(),
-        );
+
+        let swap_instruction = Instruction::SWAP(R8Operand::HLInd);
+        execute_instruction(swap_instruction.clone(), instruction_size, &mut cpu, &mut bus);
         assert_mem!(bus, hl_addr, 0xbc);
     }
 
@@ -1561,247 +1523,156 @@ mod tests {
     fn test_cb_srl_operations() {
         let mut cpu = Cpu::new();
         let mut bus = Bus::new();
-        let mut offset: u16 = 0;
+        let instruction_size = 2;
 
         cpu.set_register(Register::B, 0b1111_0000);
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b00_111_000 | R8Operand::B.to_byte(),
-        );
+
+        let srl_instruction = Instruction::SRL(R8Operand::B);
+        execute_instruction(srl_instruction.clone(), instruction_size, &mut cpu, &mut bus);
         let original_lsb = (0b1111_0000 & 1) != 0;
         assert_reg!(cpu, Register::B, 0b0111_1000);
-        assert_eq!(
-            cpu.get_flag(Flag::Carry),
-            original_lsb,
-            "Carry flag should match original LSB"
-        );
+        assert_eq!(cpu.get_flag(Flag::Carry), original_lsb, "Carry flag should match original LSB");
 
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut bus, &cpu, 0b1100_1011);
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b00_111_000 | R8Operand::HLInd.to_byte(),
-        );
+
+        let srl_instruction = Instruction::SRL(R8Operand::HLInd);
+        execute_instruction(srl_instruction.clone(), instruction_size, &mut cpu, &mut bus);
         assert_mem!(bus, hl_addr, 0b0110_0101);
-        assert!(
-            cpu.get_flag(Flag::Carry),
-            "SRL [HL] should set the carry flag"
-        );
+        assert!(cpu.get_flag(Flag::Carry), "SRL [HL] should set the carry flag");
     }
 
     #[test]
     fn test_cb_rrc_operations() {
         let mut cpu = Cpu::new();
         let mut bus = Bus::new();
-        let mut offset: u16 = 0;
+        let instruction_size = 2;
 
         cpu.set_register(Register::E, 0b1111_0000);
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b00_001_000 | R8Operand::E.to_byte(),
-        );
-        assert_reg!(cpu, Register::E, 0b0111_1000);
-        assert!(
-            !cpu.get_flag(Flag::Carry),
-            "RRC on E should not set the carry flag"
-        );
 
-        // Test RRC on bus pointed by HL.
+        let rrc_instruction = Instruction::RRC(R8Operand::E);
+        execute_instruction(rrc_instruction.clone(), instruction_size, &mut cpu, &mut bus);
+        assert_reg!(cpu, Register::E, 0b0111_1000);
+        assert!(!cpu.get_flag(Flag::Carry), "RRC on E should not set the carry flag");
+
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut bus, &cpu, 0b1110_0101);
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b00_001_000 | R8Operand::HLInd.to_byte(),
-        );
+
+        let rrc_instruction = Instruction::RRC(R8Operand::HLInd);
+        execute_instruction(rrc_instruction.clone(), instruction_size, &mut cpu, &mut bus);
         assert_mem!(bus, hl_addr, 0b1111_0010);
-        assert!(
-            cpu.get_flag(Flag::Carry),
-            "RRC [HL] should set the carry flag"
-        );
+        assert!(cpu.get_flag(Flag::Carry), "RRC [HL] should set the carry flag");
     }
 
     #[test]
     fn test_cb_rlc_operations() {
         let mut cpu = Cpu::new();
         let mut bus = Bus::new();
-        let mut offset: u16 = 0;
+        let instruction_size = 2;
 
         cpu.set_register(Register::A, 0b0000_1111);
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b00_000_000 | R8Operand::A.to_byte(),
-        );
+
+        let rlc_instruction = Instruction::RLC(R8Operand::A);
+        execute_instruction(rlc_instruction.clone(), instruction_size, &mut cpu, &mut bus);
         assert_reg!(cpu, Register::A, 0b0001_1110);
-        assert!(
-            !cpu.get_flag(Flag::Carry),
-            "RLC on A should not set the carry flag"
-        );
+        assert!(!cpu.get_flag(Flag::Carry), "RLC on A should not set the carry flag");
 
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut bus, &cpu, 0b0010_1111);
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b00_000_000 | R8Operand::HLInd.to_byte(),
-        );
+        // RLC [HL] (original opcode: 0b00_000_000 | R8Operand::HLInd)
+        let rlc_instruction = Instruction::RLC(R8Operand::HLInd);
+        execute_instruction(rlc_instruction.clone(), instruction_size, &mut cpu, &mut bus);
         assert_mem!(bus, hl_addr, 0b0101_1110);
-        assert!(
-            !cpu.get_flag(Flag::Carry),
-            "RLC [HL] should not set the carry flag"
-        );
+        assert!(!cpu.get_flag(Flag::Carry), "RLC [HL] should not set the carry flag");
     }
 
     #[test]
     fn test_cb_sra_operations() {
         let mut cpu = Cpu::new();
         let mut bus = Bus::new();
-        let mut offset: u16 = 0;
+        let instruction_size = 2;
 
         cpu.set_register(Register::D, 0b1111_0000);
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b00_101_000 | R8Operand::D.to_byte(),
-        );
+
+        let sra_instruction = Instruction::SRA(R8Operand::D);
+        execute_instruction(sra_instruction.clone(), instruction_size, &mut cpu, &mut bus);
         let original_lsb = (0b1111_0000 & 1) != 0;
         assert_reg!(cpu, Register::D, 0b1111_1000);
-        assert_eq!(
-            cpu.get_flag(Flag::Carry),
-            original_lsb,
-            "SRA D carry flag mismatch"
-        );
+        assert_eq!(cpu.get_flag(Flag::Carry), original_lsb, "SRA D carry flag mismatch");
 
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut bus, &cpu, 0b1110_0101);
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b00_101_000 | R8Operand::HLInd.to_byte(),
-        );
+
+        let sra_instruction = Instruction::SRA(R8Operand::HLInd);
+        execute_instruction(sra_instruction.clone(), instruction_size, &mut cpu, &mut bus);
         assert_mem!(bus, hl_addr, 0b1111_0010);
-        assert!(
-            cpu.get_flag(Flag::Carry),
-            "SRA [HL] should set the carry flag"
-        );
+        assert!(cpu.get_flag(Flag::Carry), "SRA [HL] should set the carry flag");
     }
 
     #[test]
     fn test_cb_sla_operations() {
         let mut cpu = Cpu::new();
         let mut bus = Bus::new();
-        let mut offset: u16 = 0;
+        let instruction_size = 2;
 
         cpu.set_register(Register::E, 0b1111_0000);
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b00_100_000 | R8Operand::E.to_byte(),
-        );
+
+        let sla_instruction = Instruction::SLA(R8Operand::E);
+        execute_instruction(sla_instruction.clone(), instruction_size, &mut cpu, &mut bus);
         let original_msb = (0b1111_0000 & 0x80) != 0;
         assert_reg!(cpu, Register::E, 0b1110_0000);
-        assert_eq!(
-            cpu.get_flag(Flag::Carry),
-            original_msb,
-            "SLA E carry flag mismatch"
-        );
+        assert_eq!(cpu.get_flag(Flag::Carry), original_msb, "SLA E carry flag mismatch");
 
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut bus, &cpu, 0b0010_1011);
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b00_100_000 | R8Operand::HLInd.to_byte(),
-        );
+
+        let sla_instruction = Instruction::SLA(R8Operand::HLInd);
+        execute_instruction(sla_instruction.clone(), instruction_size, &mut cpu, &mut bus);
         assert_mem!(bus, hl_addr, 0b0101_0110);
-        assert!(
-            !cpu.get_flag(Flag::Carry),
-            "SLA [HL] should not set the carry flag"
-        );
+        assert!(!cpu.get_flag(Flag::Carry), "SLA [HL] should not set the carry flag");
     }
 
     #[test]
     fn test_cb_rr_operations() {
         let mut cpu = Cpu::new();
         let mut bus = Bus::new();
-        let mut offset: u16 = 0;
+        let instruction_size = 2;
 
         cpu.set_register(Register::E, 0b1111_0000);
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b00_011_000 | R8Operand::E.to_byte(),
-        );
+
+        let rr_instruction = Instruction::RR(R8Operand::E);
+        execute_instruction(rr_instruction.clone(), instruction_size, &mut cpu, &mut bus);
         assert_reg!(cpu, Register::E, 0b0111_1000);
-        assert_eq!(
-            cpu.get_flag(Flag::Carry),
-            false,
-            "RR on E should not set the carry flag"
-        );
+        assert_eq!(cpu.get_flag(Flag::Carry), false, "RR on E should not set the carry flag");
 
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut bus, &cpu, 0b1110_0101);
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b00_011_000 | R8Operand::HLInd.to_byte(),
-        );
+
+        let rr_instruction = Instruction::RR(R8Operand::HLInd);
+        execute_instruction(rr_instruction.clone(), instruction_size, &mut cpu, &mut bus);
         assert_mem!(bus, hl_addr, 0b0111_0010);
-        assert!(
-            cpu.get_flag(Flag::Carry),
-            "RR [HL] should set the carry flag"
-        );
+        assert!(cpu.get_flag(Flag::Carry), "RR [HL] should set the carry flag");
     }
 
     #[test]
     fn test_cb_rl_operations() {
         let mut cpu = Cpu::new();
         let mut bus = Bus::new();
-        let mut offset: u16 = 0;
+        let instruction_size = 2;
 
+        let instruction = Instruction::RL(R8Operand::A);
         cpu.set_register(Register::A, 0b0000_1111);
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b00_010_000 | R8Operand::A.to_byte(),
-        );
+        execute_instruction(instruction.clone(), instruction_size, &mut cpu, &mut bus);
         assert_reg!(cpu, Register::A, 0b0001_1110);
-        assert_eq!(
-            cpu.get_flag(Flag::Carry),
-            false,
-            "RL on A should not set the carry flag"
-        );
+        assert_flag(Flag::Carry, false, instruction, &cpu);
 
+
+        let instruction = Instruction::RL(R8Operand::HLInd);
         let hl_addr = cpu.get_register_16(Register16::HL);
         preload_hl(&mut bus, &cpu, 0b0010_1111);
-        execute_cb_instruction(
-            &mut cpu,
-            &mut bus,
-            &mut offset,
-            0b00_010_000 | R8Operand::HLInd.to_byte(),
-        );
+        execute_instruction(instruction.clone(), instruction_size, &mut cpu, &mut bus);
         assert_mem!(bus, hl_addr, 0b0101_1110);
-        assert_eq!(
-            cpu.get_flag(Flag::Carry),
-            false,
-            "RL [HL] should not set the carry flag"
-        );
+        assert_flag(Flag::Carry, false, instruction, &cpu);
     }
+
 }
