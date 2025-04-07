@@ -21,24 +21,26 @@ pub struct Cpu {
 
 impl Cpu {
     pub fn new() -> Self {
-        // Cpu {
-        //     a: 0x01,
-        //     b: 0x00,
-        //     c: 0x13,
-        //     d: 0x00,
-        //     e: 0xD8,
-        //     h: 0x01,
-        //     l: 0x4D,
-        //     f: 0xB0,
-        //     pc: 0x100,
-        //     sp: 0xFFFE,
-        //     clock: 0,
-        //     interrupts_enabled: true,
-        //     halted: false,
-        // }
-        Self::default()
+        Cpu {
+            a: 0x01,
+            b: 0x00,
+            c: 0x13,
+            d: 0x00,
+            e: 0xD8,
+            h: 0x01,
+            l: 0x4D,
+            f: 0xB0,
+            pc: 0x100,
+            sp: 0xFFFE,
+            clock: 0,
+            interrupts_enabled: true,
+            halted: false,
+        }
     }
 
+    pub fn new_default() -> Self {
+        Self::default()
+    }
     // Utility
 
     fn set_register(&mut self, register: Register, value: u8) {
@@ -1425,7 +1427,7 @@ mod tests {
 
     #[test]
     fn test_cb_set_operations() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new_default();
         let mut bus = Bus::new();
         let instruction_size = 2;
 
@@ -1456,7 +1458,7 @@ mod tests {
 
     #[test]
     fn test_cb_res_operations() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new_default();
         let mut bus = Bus::new();
         let instruction_size = 2;
 
@@ -1478,7 +1480,7 @@ mod tests {
 
     #[test]
     fn test_cb_bit_operations() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new_default();
         let mut bus = Bus::new();
         let instruction_size = 2;
 
@@ -1501,7 +1503,7 @@ mod tests {
 
     #[test]
     fn test_cb_swap_operations() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new_default();
         let mut bus = Bus::new();
         let instruction_size = 2;
 
@@ -1521,7 +1523,7 @@ mod tests {
 
     #[test]
     fn test_cb_srl_operations() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new_default();
         let mut bus = Bus::new();
         let instruction_size = 2;
 
@@ -1544,7 +1546,7 @@ mod tests {
 
     #[test]
     fn test_cb_rrc_operations() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new_default();
         let mut bus = Bus::new();
         let instruction_size = 2;
 
@@ -1566,7 +1568,7 @@ mod tests {
 
     #[test]
     fn test_cb_rlc_operations() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new_default();
         let mut bus = Bus::new();
         let instruction_size = 2;
 
@@ -1588,7 +1590,7 @@ mod tests {
 
     #[test]
     fn test_cb_sra_operations() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new_default();
         let mut bus = Bus::new();
         let instruction_size = 2;
 
@@ -1611,7 +1613,7 @@ mod tests {
 
     #[test]
     fn test_cb_sla_operations() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new_default();
         let mut bus = Bus::new();
         let instruction_size = 2;
 
@@ -1634,7 +1636,7 @@ mod tests {
 
     #[test]
     fn test_cb_rr_operations() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new_default();
         let mut bus = Bus::new();
         let instruction_size = 2;
 
@@ -1656,7 +1658,7 @@ mod tests {
 
     #[test]
     fn test_cb_rl_operations() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new_default();
         let mut bus = Bus::new();
         let instruction_size = 2;
 
