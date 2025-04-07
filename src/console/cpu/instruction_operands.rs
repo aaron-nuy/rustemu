@@ -1,5 +1,3 @@
-use super::register::{Register, Register16};
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum R8Operand {
     B,
@@ -154,43 +152,6 @@ impl FlowCondition {
             FlowCondition::Zero => 1,
             FlowCondition::NotCarry => 2,
             FlowCondition::Carry => 3
-        }
-    }
-}
-
-#[derive(Clone)]
-pub enum OperandType {
-    R8Operand,
-    R16Operand,
-    R16StkOperand,
-    R16MemOperand,
-    FlowCondition,
-    ResetTarget,
-    BitIndex
-}
-
-#[derive(Clone)]
-pub enum Block {
-    ZERO,
-    ONE,
-    TWO,
-    THREE,
-    CB
-}
-
-impl Block {
-    pub fn from_byte(opcode: u8, is_cb: bool) -> Block {
-        if is_cb {
-            return Block::CB;
-        }
-
-        let block_index = (opcode & 0b11000000) >> 6;
-        match block_index {
-            0 => Block::ZERO,
-            1 => Block::ONE,
-            2 => Block::TWO,
-            3 => Block::THREE,
-            _ => panic!("Unknown block index {}", block_index)
         }
     }
 }

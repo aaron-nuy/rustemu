@@ -6,8 +6,6 @@ use crate::console::audio::Audio;
 use std::fs;
 use std::path::Path;
 
-use super::{cpu, bus};
-
 pub struct Gameboy {
     cpu: Cpu,
     bus: Bus,
