@@ -88,6 +88,86 @@ impl Instruction {
         }
     }
 
+    pub fn size(&self) -> u8 {
+        use Instruction::*;
+
+        match self {
+            LD(_, _) => 1,
+            LDImm8(_, _) => 2,
+            LDFromMemToA(_) => 1,
+            LDToMemFromA(_) => 1,
+            LDFromImmIndToA16(_) => 3,
+            LDToImmIndFromA16(_) => 3,
+            LDToAFromCInd() => 1,
+            LDFromAToCInd() => 1,
+            LDFromImmIndToA8(_) => 2,
+            LDToImmIndFromA8(_) => 2,
+            LDImm16(_, _) => 3,
+            LDToImmIndFromSP(_) => 3,
+            LDSPFromHL() => 1,
+            PUSH(_) => 1,
+            POP(_) => 1,
+            LDHLFromAdjustedSP(_) => 2,
+            ADD(_) => 1,
+            ADDImm(_) => 2,
+            ADC(_) => 1,
+            ADCImm(_) => 2,
+            SUB(_) => 1,
+            SUBImm(_) => 2,
+            SBC(_) => 1,
+            SBCImm(_) => 2,
+            CP(_) => 1,
+            CPImm(_) => 2,
+            INC8(_) => 1,
+            DEC8(_) => 1,
+            AND(_) => 1,
+            ANDImm(_) => 2,
+            OR(_) => 1,
+            ORImm(_) => 2,
+            XOR(_) => 1,
+            XORImm(_) => 2,
+            CCF() => 1,
+            SCF() => 1,
+            DAA() => 1,
+            CPL() => 1,
+            RLCA() => 1,
+            RRCA() => 1,
+            RRA() => 1,
+            RLA() => 1,
+            INC16(_) => 1,
+            DEC16(_) => 1,
+            ADDHL(_) => 1,
+            ADDSPImm(_) => 2,
+            RLC(_) => 2,
+            RRC(_) => 2,
+            RL(_) => 2,
+            RR(_) => 2,
+            SRA(_) => 2,
+            SLA(_) => 2,
+            SRL(_) => 2,
+            SWAP(_) => 2,
+            BIT(_, _) => 2,
+            RESET(_, _) => 2,
+            SET(_, _) => 2,
+            NOP() => 1,
+            JP(_) => 3,
+            JPHL() => 1,
+            JPCC(_, _) => 3,
+            JR(_) => 2,
+            JRCC(_, _) => 2,
+            CALL(_) => 3,
+            CALLCC(_, _) => 3,
+            RET() => 1,
+            RETCC(_) => 1,
+            RETI() => 1,
+            RST(_) => 1,
+            HALT() => 1,
+            STOP() => 2,
+            DI() => 1,
+            EI() => 1,
+        }
+    }
+
     fn decode_cb(opcode: u8) -> (Instruction, u16) {
         let operand = opcode & 0b0000_0111;
         let bit_index = (opcode & 0b0011_1000) >> 3;
@@ -543,7 +623,6 @@ impl Instruction {
 
 #[cfg(test)]
 mod tests {
-
     use crate::console::cpu::instruction::Instruction;
     use crate::console::cpu::instruction::Instruction::*;
     use crate::console::cpu::instruction_operands::*;
