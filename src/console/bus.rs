@@ -3,8 +3,8 @@ pub struct Bus {
 }
 
 impl Bus {
-    const SB_ADR: u16 = 0xFF01;
-    const SC_ADR: u16 = 0xFF02;
+    const SB_ADR: usize = 0xFF01;
+    const SC_ADR: usize = 0xFF02;
 
     fn write_to_bus(&mut self, address: u16, value: u8) {
 
