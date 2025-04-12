@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum R8Operand {
     B,
     C,
@@ -40,7 +40,7 @@ impl R8Operand {
 
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum R16Operand {
     BC,
     DE,
@@ -69,7 +69,7 @@ impl R16Operand {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum R16StkOperand {
     BC,
     DE,
@@ -98,7 +98,7 @@ impl R16StkOperand {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum R16MemOperand {
     BC,
     DE,
@@ -127,7 +127,7 @@ impl R16MemOperand {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum FlowCondition {
     NotZero,
     Zero,

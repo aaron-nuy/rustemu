@@ -1,7 +1,7 @@
 pub use crate::console::cpu::instruction_operands::*;
 pub use crate::console::cpu::register::*;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Instruction {
     LD(R8Operand, R8Operand),
     LDImm8(R8Operand, u8),
@@ -282,7 +282,7 @@ impl Instruction {
         match opcode {
             0b0111_0110 => (Instruction::HALT(), 1),
             opcode if (opcode & 0b1100_0000) == 0b0100_0000 => {
-                match (r8_operand_dest.clone(), r8_operand_source.clone()) {
+                match (r8_operand_dest, r8_operand_source) {
                     (R8Operand::HLInd, R8Operand::HLInd) => (Instruction::HALT(), 1),
                     (_, _) => (Instruction::LD(r8_operand_dest, r8_operand_source), 1),
                 }
@@ -628,7 +628,7 @@ mod tests {
     use crate::console::cpu::instruction_operands::*;
 
     fn assert_decode(instruction: Instruction, expected_size: u16) {
-        let [byte1, byte2, byte3] = Instruction::encode(instruction.clone());
+        let [byte1, byte2, byte3] = Instruction::encode(instruction);
         let (decoded_instr, decoded_size) = Instruction::decode(byte1, byte2, byte3);
         assert_eq!(
             decoded_instr, instruction,
@@ -657,16 +657,16 @@ mod tests {
             R8Operand::HLInd,
         ];
 
-        for operand in &operands_r8 {
+        for operand in operands_r8 {
             let instructions = [
-                RLC(operand.clone()),
-                RRC(operand.clone()),
-                RL(operand.clone()),
-                RR(operand.clone()),
-                SLA(operand.clone()),
-                SRA(operand.clone()),
-                SWAP(operand.clone()),
-                SRL(operand.clone()),
+                RLC(operand),
+                RRC(operand),
+                RL(operand),
+                RR(operand),
+                SLA(operand),
+                SRA(operand),
+                SWAP(operand),
+                SRL(operand),
             ];
 
             for instruction in instructions {
@@ -675,11 +675,11 @@ mod tests {
         }
 
         for bit_index in 0..=7 {
-            for operand in &operands_r8 {
+            for operand in operands_r8 {
                 let instructions = [
-                    BIT(bit_index, operand.clone()),
-                    SET(bit_index, operand.clone()),
-                    RESET(bit_index, operand.clone()),
+                    BIT(bit_index, operand),
+                    SET(bit_index, operand),
+                    RESET(bit_index, operand),
                 ];
 
                 for instruction in instructions {
@@ -718,7 +718,7 @@ mod tests {
             for operand in 0..=7 {
                 let r8_operand = R8Operand::from_byte(operand);
 
-                let instruction = INC8(r8_operand.clone());
+                let instruction = INC8(r8_operand);
                 assert_decode(instruction, expected_size);
 
                 let instruction = DEC8(r8_operand);
@@ -769,9 +769,9 @@ mod tests {
                 let r16_operand = R16Operand::from_byte(operand);
 
                 let instructions = [
-                    INC16(r16_operand.clone()),
-                    DEC16(r16_operand.clone()),
-                    ADDHL(r16_operand.clone()),
+                    INC16(r16_operand),
+                    DEC16(r16_operand),
+                    ADDHL(r16_operand),
                 ];
 
                 for instruction in instructions {
@@ -803,7 +803,7 @@ mod tests {
             for operand in 0..=3 {
                 let r16mem_operand = R16MemOperand::from_byte(operand);
 
-                let instruction = LDToMemFromA(r16mem_operand.clone());
+                let instruction = LDToMemFromA(r16mem_operand);
                 assert_decode(instruction, expected_size);
 
                 let instruction = LDFromMemToA(r16mem_operand);
@@ -827,15 +827,15 @@ mod tests {
             R8Operand::HLInd,
         ];
 
-        for register_source in &operands_r8 {
-            for register_dest in &operands_r8 {
+        for register_source in operands_r8 {
+            for register_dest in operands_r8 {
                 match (register_source, register_dest) {
                     (R8Operand::HLInd, R8Operand::HLInd) => {
                         let instruction = HALT();
                         assert_decode(instruction, expected_size);
                     }
                     _ => {
-                        let instruction = LD(register_dest.clone(), register_source.clone());
+                        let instruction = LD(register_dest, register_source);
                         assert_decode(instruction, expected_size);
                     }
                 }
@@ -860,14 +860,14 @@ mod tests {
 
         for reg in operands_r8 {
             let instructions = [
-                ADD(reg.clone()),
-                ADC(reg.clone()),
-                SUB(reg.clone()),
-                SUB(reg.clone()),
-                AND(reg.clone()),
-                XOR(reg.clone()),
-                OR(reg.clone()),
-                CP(reg.clone()),
+                ADD(reg),
+                ADC(reg),
+                SUB(reg),
+                SUB(reg),
+                AND(reg),
+                XOR(reg),
+                OR(reg),
+                CP(reg),
             ];
 
             for instruction in instructions {
@@ -932,7 +932,7 @@ mod tests {
             for operand in 0..=3 {
                 let r16stk_operand = R16StkOperand::from_byte(operand);
 
-                let instructions = [POP(r16stk_operand.clone()), PUSH(r16stk_operand.clone())];
+                let instructions = [POP(r16stk_operand), PUSH(r16stk_operand)];
 
                 for instruction in instructions {
                     assert_decode(instruction, expected_size);
@@ -964,7 +964,7 @@ mod tests {
 
             for operand in 0..=3 {
                 let cond = FlowCondition::from_byte(operand);
-                let instructions = [JPCC(cond.clone(), 33402), CALLCC(cond.clone(), 10490)];
+                let instructions = [JPCC(cond, 33402), CALLCC(cond, 10490)];
 
                 for instruction in instructions {
                     assert_decode(instruction, expected_size);

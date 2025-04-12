@@ -1,5 +1,5 @@
 use crate::console::cpu::instruction_operands::*;
-
+#[derive(Copy, Clone)]
 pub enum Flag {
     Carry = 0x10,
     Zero = 0x80,
@@ -7,7 +7,7 @@ pub enum Flag {
     HalfCarry = 0x20
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Register {
     A,
     B,
@@ -34,7 +34,7 @@ impl Register {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Register16 {
     AF,
     BC,
