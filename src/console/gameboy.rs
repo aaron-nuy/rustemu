@@ -5,13 +5,15 @@ use crate::console::display::Display;
 use crate::console::audio::Audio;
 use std::fs;
 use std::path::Path;
+use crate::console::timer::Timer;
 
 pub struct Gameboy {
     cpu: Cpu,
     bus: Bus,
     cartridge: Cartridge,
     display: Display,
-    audio: Audio
+    audio: Audio,
+    timer: Timer,
 }
 
 impl Gameboy {
@@ -21,7 +23,8 @@ impl Gameboy {
             bus: Bus::new(),
             cartridge: Cartridge::new(),
             display: Display::new(),
-            audio: Audio::new()
+            audio: Audio::new(),
+            timer: Timer::new()
         }
     }
 
@@ -34,7 +37,8 @@ impl Gameboy {
 
     pub fn run(&mut self) {
         loop {
-            self.cpu.clock(&mut self.bus);
+            let instruction_c_cycles= (self.cpu.clock(&mut self.bus) as u64) * 4;
+            self.timer.tick(instruction_c_cycles, &mut self.bus);
         }
     }
 }

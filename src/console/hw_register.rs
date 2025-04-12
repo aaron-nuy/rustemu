@@ -158,11 +158,14 @@ impl HwRegisters {
                     print!("{}", self._sb as char);
                     self._sc &= 0x7F;
                 }
-            },
-            DIV => self._div = value,
+            }
+            DIV => self._div = 0x00,
             TIMA => self._tima = value,
             TMA => self._tma = value,
-            TAC => self._tac = value,
+            TAC => {
+                self.inc_tima();
+                self._tac = value
+            }
             IF => self._if = value,
             NR10 => self._nr10 = value,
             NR11 => self._nr11 = value,
@@ -257,6 +260,14 @@ impl HwRegisters {
     pub fn get_addr(&self, addr: u16) -> u8 {
         let hw_register_addr = HwRegisterAddr::from_addr(addr);
         self.get_hw_register(hw_register_addr)
+    }
+
+    pub fn inc_div(&mut self) {
+        self._div = self._div.wrapping_add(1)
+    }
+
+    fn inc_tima(&mut self) {
+        self._tima = self._tima.wrapping_add(1)
     }
 
     pub fn supported_addr(addr: u16) -> bool {

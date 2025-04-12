@@ -20,7 +20,6 @@ pub struct Cpu {
     _previous_instruction_was_ei: bool,
     _halted: bool,
     _halt_bug_triggered: bool,
-    _m_cycles: u8,
 }
 
 impl Cpu {
@@ -36,7 +35,6 @@ impl Cpu {
             _f: 0xB0,
             _pc: 0x100,
             _sp: 0xFFFE,
-            _m_cycles: 0,
             _previous_instruction_was_ei: false,
             _halt_bug_triggered: false,
             _interrupts_enabled: true,
@@ -192,18 +190,6 @@ impl Cpu {
         let stack_value = bus.read_from_16b(self._sp);
         self._sp = self._sp.wrapping_add(2);
         stack_value
-    }
-
-    fn inc_m_cycles(&mut self, cycles: u8) {
-        self._m_cycles = self._m_cycles.wrapping_add(cycles)
-    }
-
-    fn unset_interrupt(&self, interrupt: Interrupt, bus: &mut Bus) {
-        let mut _if = bus.read_from_8b(HwRegisterAddr::IF as u16);
-
-        _if &= !(interrupt as u8);
-
-        bus.write_to_8b(HwRegisterAddr::IF as u16, _if);
     }
 
     // Instructions
@@ -1135,7 +1121,7 @@ impl Cpu {
 
         self.call(interrupt_handler_addr, bus);
 
-        self.unset_interrupt(interrupt, bus);
+        bus.unset_interrupt(interrupt);
 
         true
     }
@@ -1160,8 +1146,6 @@ impl Cpu {
         self.step(size);
 
         let cycles = self.execute(instruction, bus);
-
-        self._m_cycles = self._m_cycles.wrapping_add(cycles);
 
         cycles
     }
@@ -1445,9 +1429,7 @@ mod tests {
     ) {
         cpu.step(instruction_size as u16);
 
-        let cycles = cpu.execute(instruction, bus);
-
-        cpu._m_cycles = cpu._m_cycles.wrapping_add(cycles);
+        cpu.execute(instruction, bus);
     }
 
     fn preload_hl(bus: &mut Bus, cpu: &Cpu, value: u8) {

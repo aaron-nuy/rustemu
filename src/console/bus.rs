@@ -56,6 +56,26 @@ impl Bus {
         Interrupt::get_interrupt(interrupt_mask)
     }
 
+    pub fn unset_interrupt(&mut self, interrupt: Interrupt) {
+        let mut _if = self.hw_registers.get_hw_register(HwRegisterAddr::IF);
+
+        _if &= !(interrupt as u8);
+
+        self.hw_registers.set_hw_register(HwRegisterAddr::IF, _if);
+    }
+
+    pub fn trigger_interrupt(&mut self, interrupt: Interrupt) {
+        let mut _if = self.hw_registers.get_hw_register(HwRegisterAddr::IF);
+
+        _if |= interrupt as u8;
+
+        self.hw_registers.set_hw_register(HwRegisterAddr::IF, _if);
+    }
+
+    pub fn inc_div(&mut self) {
+        self.hw_registers.inc_div()
+    }
+
     pub fn new() -> Self {
         Self {
             _ram: Box::new([0; MEMORY_SIZE]),
