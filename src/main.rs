@@ -4,7 +4,6 @@ use console::gameboy::{Gameboy};
 
 mod console;
 
-
 fn main() {
     let args: Vec<String> = env::args().collect();
 

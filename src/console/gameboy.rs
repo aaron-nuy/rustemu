@@ -1,7 +1,7 @@
 use crate::console::cartridge::Cartridge;
 use crate::console::cpu::cpu::Cpu;
 use crate::console::bus::Bus;
-use crate::console::display::Display;
+use crate::console::gui::gui::Gui;
 use crate::console::audio::Audio;
 use std::fs;
 use std::path::Path;
@@ -11,7 +11,7 @@ pub struct Gameboy {
     cpu: Cpu,
     bus: Bus,
     cartridge: Cartridge,
-    display: Display,
+    gui: Gui,
     audio: Audio,
     timer: Timer,
 }
@@ -22,7 +22,7 @@ impl Gameboy {
             cpu: Cpu::new(),
             bus: Bus::new(),
             cartridge: Cartridge::new(),
-            display: Display::new(),
+            gui: Gui::new(),
             audio: Audio::new(),
             timer: Timer::new()
         }
@@ -39,6 +39,12 @@ impl Gameboy {
         loop {
             let instruction_c_cycles= (self.cpu.clock(&mut self.bus) as u64) * 4;
             self.timer.tick(instruction_c_cycles, &mut self.bus);
+
+            if self.gui.should_close() {
+                break;
+            }
+            
+            self.gui.update().unwrap();
         }
     }
 }

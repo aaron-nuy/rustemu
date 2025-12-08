@@ -2,3 +2,5 @@
 .Cargo.lock
 Cargo.lock
 .vscode/
+test_roms/
+.github/
