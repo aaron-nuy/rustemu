@@ -94,9 +94,9 @@ impl HwRegisterAddr {
         }
     }
 
-    pub fn to_addr(hw_register: HwRegisterAddr) -> u16 {
+    pub fn to_addr(&self) -> u16 {
         use HwRegisterAddr::*;
-        match hw_register {
+        match self {
             P1 => 0xff00,
             SB => 0xff01,
             SC => 0xff02,

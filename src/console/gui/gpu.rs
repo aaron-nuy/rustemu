@@ -3,7 +3,7 @@ use crate::console::constants::*;
 use crate::console::hw_register::{HwRegisterAddr, HwRegisters};
 use std::ops::{BitAnd, Sub};
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum PixelLevel {
     Zero = 0b00,
     One = 0b01,
@@ -12,12 +12,14 @@ pub enum PixelLevel {
 }
 
 impl PixelLevel {
-    pub fn from_bits(bit_1: bool, bit_2: bool) -> PixelLevel {
-        match (bit_2, bit_1) {
-            (true, true) => PixelLevel::Three,
-            (true, false) => PixelLevel::Two,
-            (false, true) => PixelLevel::One,
-            (false, false) => PixelLevel::Zero,
+    pub fn from_byte(shade: u8) -> PixelLevel {
+        assert!(shade <= 0b11);
+        match (shade) {
+            0 => PixelLevel::Zero,
+            1 => PixelLevel::One,
+            2 => PixelLevel::Two,
+            3 => PixelLevel::Three,
+            _ => unreachable!(),
         }
     }
 
@@ -51,10 +53,6 @@ impl Tile {
         Self { data }
     }
 
-    pub fn from_bytes_16(bytes: [u16; 8]) -> Self {
-        Self { data: bytes }
-    }
-
     pub fn read_pixel(&self, x: usize, y: usize) -> PixelLevel {
         assert!(x < 8);
         assert!(y < 8);
@@ -67,10 +65,10 @@ impl Tile {
         // the most significant bit represents the leftmost pixel so we reverse bit order
         let shift = 7 - x;
 
-        let extracted_first_half: bool = (first_half >> shift) & 0b1 == 0b1;
-        let extracted_second_half: bool = (second_half >> shift) & 0b1 == 0b1;
+        let msb = (first_half >> shift) & 0b1;
+        let lsb = (second_half >> shift) & 0b1;
 
-        PixelLevel::from_bits(extracted_first_half, extracted_second_half)
+        PixelLevel::from_byte((msb << 1) | lsb)
     }
 }
 
@@ -163,7 +161,12 @@ impl Gpu {
         self.vram[addr as usize]
     }
 
-    fn get_tile_addr_adjusted(&self, index: u8, objects: bool, no_use_signed_addressing: bool) -> u16 {
+    fn get_tile_addr_adjusted(
+        &self,
+        index: u8,
+        objects: bool,
+        no_use_signed_addressing: bool,
+    ) -> u16 {
         let signed = !objects && !no_use_signed_addressing;
 
         if !signed {
@@ -192,12 +195,39 @@ impl Gpu {
 
         for i in 0..TILE_MAP_SIZE as usize {
             let tile_idx = self.vram[tile_map_offset + i];
-            let tile_addr = self.get_tile_addr_adjusted(tile_idx, objects, no_use_signed_addressing);
+            let tile_addr =
+                self.get_tile_addr_adjusted(tile_idx, objects, no_use_signed_addressing);
             let tile_bytes = &self.vram[tile_addr as usize..(tile_addr + TILE_SIZE) as usize];
             tile_map[i] = Tile::from_bytes_8(tile_bytes.try_into().unwrap());
         }
 
         tile_map
+    }
+
+    fn translate_pixel_level_bgp(&self, pixel_level: PixelLevel, bus: &Bus) -> PixelLevel {
+        let bgp = bus.read_from_8b(HwRegisterAddr::BGP.to_addr());
+        PixelLevel::from_byte((bgp >> (pixel_level as u8 * 2)) & 0b11)
+    }
+
+    fn translate_pixel_level_other(
+        &self,
+        pixel_level: PixelLevel,
+        obp_1: bool,
+        bus: &Bus,
+    ) -> Option<PixelLevel> {
+
+        // Pixel index zero is transparent
+        if pixel_level == PixelLevel::Zero {
+            return None;
+        }
+
+        let register_addr = if obp_1 {
+            HwRegisterAddr::OBP1.to_addr()
+        } else {
+            HwRegisterAddr::OBP0.to_addr()
+        };
+        let register = bus.read_from_8b(register_addr);
+        Some(PixelLevel::from_byte((register >> (pixel_level as u8 * 2)) & 0b11))
     }
 
     fn render_background(
@@ -206,9 +236,9 @@ impl Gpu {
         background_tile_map: &[Tile; TILE_MAP_SIZE as usize],
         bus: &Bus,
     ) {
-        let scx = bus.read_from_8b(HwRegisterAddr::to_addr(HwRegisterAddr::SCX));
-        let scy = bus.read_from_8b(HwRegisterAddr::to_addr(HwRegisterAddr::SCY));
-        
+        let scx = bus.read_from_8b(HwRegisterAddr::SCX.to_addr());
+        let scy = bus.read_from_8b(HwRegisterAddr::SCY.to_addr());
+
         for y in 0..SCREEN_HEIGHT {
             for x in 0..SCREEN_WIDTH {
                 let adjusted_x = (x as u8).wrapping_add(scx);
@@ -223,7 +253,9 @@ impl Gpu {
                 let tile_x = adjusted_x % (TILE_DIMS as u8);
                 let tile_y = adjusted_y % (TILE_DIMS as u8);
 
-                buffer[y * SCREEN_WIDTH + x] = tile.read_pixel(tile_x as usize, tile_y as usize);
+                let pixel_level = tile.read_pixel(tile_x as usize, tile_y as usize);
+
+                buffer[y * SCREEN_WIDTH + x] = self.translate_pixel_level_bgp(pixel_level, bus);
             }
         }
     }
@@ -234,8 +266,8 @@ impl Gpu {
         window_tile_map: &[Tile; TILE_MAP_SIZE as usize],
         bus: &Bus,
     ) {
-        let wx = bus.read_from_8b(HwRegisterAddr::to_addr(HwRegisterAddr::WX));
-        let wy = bus.read_from_8b(HwRegisterAddr::to_addr(HwRegisterAddr::WY));
+        let wx = bus.read_from_8b(HwRegisterAddr::WX.to_addr());
+        let wy = bus.read_from_8b(HwRegisterAddr::WY.to_addr());
 
         for y in 0..SCREEN_HEIGHT {
             for x in 0..SCREEN_WIDTH {
@@ -262,7 +294,9 @@ impl Gpu {
                 let tile = window_tile_map
                     [tile_idx_y as usize * TILE_MAP_DIMS as usize + tile_idx_x as usize];
 
-                buffer[y * SCREEN_WIDTH + x] = tile.read_pixel(tile_x as usize, tile_y as usize);
+                let pixel_level = tile.read_pixel(tile_x as usize, tile_y as usize);
+
+                buffer[y * SCREEN_WIDTH + x] = self.translate_pixel_level_bgp(pixel_level, bus);
             }
         }
     }
@@ -270,7 +304,7 @@ impl Gpu {
     pub fn tick(&self, cycles: u64, bus: &Bus) -> [PixelLevel; SCREEN_WIDTH * SCREEN_HEIGHT] {
         let mut frame_buffer = [PixelLevel::Zero; SCREEN_WIDTH * SCREEN_HEIGHT];
 
-        let lcdc = bus.read_from_8b(HwRegisterAddr::to_addr(HwRegisterAddr::LCDC));
+        let lcdc = bus.read_from_8b(HwRegisterAddr::LCDC.to_addr());
 
         let no_use_signed_addressing = lcdc & (LCDCFlag::NoSignedAddressing as u8) != 0;
         let object_tile_map = self.extract_tile_map(false, true, no_use_signed_addressing);

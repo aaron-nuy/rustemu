@@ -43,6 +43,7 @@ impl Gameboy {
             cycles_since_last_render += instruction_c_cycles;
 
             if cycles_since_last_render >= RENDER_FREQUENCY / 64 {
+                self.bus.write_to_8b(HwRegisterAddr::LY.to_addr(), 144);
                 let gpu_out = self.bus.gpu.tick(instruction_c_cycles, &self.bus);
                 self.gui.update(&gpu_out).unwrap();
                 cycles_since_last_render = 0;
