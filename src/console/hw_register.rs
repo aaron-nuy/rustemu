@@ -93,6 +93,54 @@ impl HwRegisterAddr {
             _ => panic!("Unsupported hardware register address: 0x{:X}", addr),
         }
     }
+
+    pub fn to_addr(hw_register: HwRegisterAddr) -> u16 {
+        use HwRegisterAddr::*;
+        match hw_register {
+            P1 => 0xff00,
+            SB => 0xff01,
+            SC => 0xff02,
+            DIV => 0xff04,
+            TIMA => 0xff05,
+            TMA => 0xff06,
+            TAC => 0xff07,
+            IF => 0xff0f,
+            NR10 => 0xff10,
+            NR11 => 0xff11,
+            NR12 => 0xff12,
+            NR13 => 0xff13,
+            NR14 => 0xff14,
+            NR21 => 0xff16,
+            NR22 => 0xff17,
+            NR23 => 0xff18,
+            NR24 => 0xff19,
+            NR30 => 0xff1a,
+            NR31 => 0xff1b,
+            NR32 => 0xff1c,
+            NR33 => 0xff1d,
+            NR34 => 0xff1e,
+            NR41 => 0xff20,
+            NR42 => 0xff21,
+            NR43 => 0xff22,
+            NR44 => 0xff23,
+            NR50 => 0xff24,
+            NR51 => 0xff25,
+            NR52 => 0xff26,
+            LCDC => 0xff40,
+            STAT => 0xff41,
+            SCY => 0xff42,
+            SCX => 0xff43,
+            LY => 0xff44,
+            LYC => 0xff45,
+            DMA => 0xff46,
+            BGP => 0xff47,
+            OBP0 => 0xff48,
+            OBP1 => 0xff49,
+            WY => 0xff4a,
+            WX => 0xff4b,
+            IE => 0xffff,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -272,48 +320,11 @@ impl HwRegisters {
 
     pub fn supported_addr(addr: u16) -> bool {
         match addr {
-            0xff00 |
-            0xff01 |
-            0xff02 |
-            0xff04 |
-            0xff05 |
-            0xff06 |
-            0xff07 |
-            0xff0f |
-            0xff10 |
-            0xff11 |
-            0xff12 |
-            0xff13 |
-            0xff14 |
-            0xff16 |
-            0xff17 |
-            0xff18 |
-            0xff19 |
-            0xff1a |
-            0xff1b |
-            0xff1c |
-            0xff1d |
-            0xff1e |
-            0xff20 |
-            0xff21 |
-            0xff22 |
-            0xff23 |
-            0xff24 |
-            0xff25 |
-            0xff26 |
-            0xff40 |
-            0xff41 |
-            0xff42 |
-            0xff43 |
-            0xff44 |
-            0xff45 |
-            0xff46 |
-            0xff47 |
-            0xff48 |
-            0xff49 |
-            0xff4a |
-            0xff4b |
-            0xffff => true,
+            0xff00 | 0xff01 | 0xff02 | 0xff04 | 0xff05 | 0xff06 | 0xff07 | 0xff0f | 0xff10
+            | 0xff11 | 0xff12 | 0xff13 | 0xff14 | 0xff16 | 0xff17 | 0xff18 | 0xff19 | 0xff1a
+            | 0xff1b | 0xff1c | 0xff1d | 0xff1e | 0xff20 | 0xff21 | 0xff22 | 0xff23 | 0xff24
+            | 0xff25 | 0xff26 | 0xff40 | 0xff41 | 0xff42 | 0xff43 | 0xff44 | 0xff45 | 0xff46
+            | 0xff47 | 0xff48 | 0xff49 | 0xff4a | 0xff4b | 0xffff => true,
             _ => false,
         }
     }

@@ -1,24 +1,42 @@
+use crate::console::audio::Audio;
+use crate::console::cartridge::Cartridge;
 use crate::console::constants::*;
+use crate::console::gui::gpu::Gpu;
 use crate::console::hw_register::{HwRegisterAddr, HwRegisters};
 use crate::console::interrupt::Interrupt;
 
 pub struct Bus {
-    _ram: Box<[u8; MEMORY_SIZE]>,
+    ram: Box<[u8; MEMORY_SIZE]>,
+    boot_rom: [u8; BOOT_ROM_SIZE],
+    boot_rom_enabled: bool,
+    cartridge: Cartridge,
+    pub gpu: Gpu,
+    audio: Audio,
     hw_registers: HwRegisters,
 }
 
 impl Bus {
     fn write_to_bus(&mut self, addr: u16, value: u8) {
         match addr {
+            addr if addr == BOOT_ROM_DISABLE_ADDR => {
+                self.boot_rom_enabled = false;
+            }
             addr if HwRegisters::supported_addr(addr) => self.hw_registers.set_addr(addr, value),
-            _ => self._ram[addr as usize] = value,
+            VRAM_BEGIN..=VRAM_END => {
+                self.gpu.write_to_vram(addr - VRAM_BEGIN, value);
+            }
+            _ => self.ram[addr as usize] = value,
         }
     }
 
     fn read_from_bus(&self, addr: u16) -> u8 {
         match addr {
+            addr if self.boot_rom_enabled && addr < BOOT_ROM_SIZE as u16 => {
+                self.boot_rom[addr as usize]
+            }
             addr if HwRegisters::supported_addr(addr) => self.hw_registers.get_addr(addr),
-            _ => self._ram[addr as usize],
+            VRAM_BEGIN..=VRAM_END => self.gpu.read_from_vram(addr - VRAM_BEGIN),
+            _ => self.ram[addr as usize],
         }
     }
 
@@ -45,7 +63,12 @@ impl Bus {
     }
 
     pub fn load_rom(&mut self, data: Vec<u8>) {
-        self._ram[..data.len()].copy_from_slice(&data);
+        let rom_max_len = 0x8000usize;
+        let rom_len = data.len().min(rom_max_len);
+
+        self.ram[..rom_len].copy_from_slice(&data[..rom_len]);
+
+        self.gpu.vram.fill(0);
     }
 
     pub fn get_interrupt(&self) -> Option<(Interrupt, u16)> {
@@ -78,8 +101,13 @@ impl Bus {
 
     pub fn new() -> Self {
         Self {
-            _ram: Box::new([0; MEMORY_SIZE]),
+            ram: Box::new([0; MEMORY_SIZE]),
+            gpu: Gpu::new(),
+            audio: Audio::new(),
+            cartridge: Cartridge::new(),
             hw_registers: HwRegisters::default(),
+            boot_rom: BOOT_ROM,
+            boot_rom_enabled: true,
         }
     }
 }

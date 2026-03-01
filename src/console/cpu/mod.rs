@@ -1,5 +1,5 @@
 mod instruction;
-mod register;
 mod instruction_operands;
+mod register;
 
 pub mod cpu;

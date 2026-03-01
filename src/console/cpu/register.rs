@@ -4,7 +4,7 @@ pub enum Flag {
     Carry = 0x10,
     Zero = 0x80,
     Sub = 0x40,
-    HalfCarry = 0x20
+    HalfCarry = 0x20,
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
@@ -16,7 +16,7 @@ pub enum Register {
     E,
     F,
     H,
-    L
+    L,
 }
 
 impl Register {
@@ -29,7 +29,7 @@ impl Register {
             R8Operand::H => Register::H,
             R8Operand::L => Register::L,
             R8Operand::A => Register::A,
-            R8Operand::HLInd => panic!("Attempting to construct register from HLInd")
+            R8Operand::HLInd => panic!("Attempting to construct register from HLInd"),
         }
     }
 }
@@ -41,7 +41,7 @@ pub enum Register16 {
     DE,
     HL,
     SP,
-    PC
+    PC,
 }
 
 impl Register16 {
@@ -50,7 +50,7 @@ impl Register16 {
             R16Operand::BC => Register16::BC,
             R16Operand::DE => Register16::DE,
             R16Operand::HL => Register16::HL,
-            R16Operand::SP => Register16::SP
+            R16Operand::SP => Register16::SP,
         }
     }
 
@@ -59,7 +59,7 @@ impl Register16 {
             R16StkOperand::BC => Register16::BC,
             R16StkOperand::DE => Register16::DE,
             R16StkOperand::HL => Register16::HL,
-            R16StkOperand::AF => Register16::AF
+            R16StkOperand::AF => Register16::AF,
         }
     }
 }

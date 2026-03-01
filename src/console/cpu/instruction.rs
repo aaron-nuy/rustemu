@@ -1,5 +1,6 @@
 pub use crate::console::cpu::instruction_operands::*;
 pub use crate::console::cpu::register::*;
+pub use std::fmt;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Instruction {
@@ -768,11 +769,7 @@ mod tests {
             for operand in 0..=3 {
                 let r16_operand = R16Operand::from_byte(operand);
 
-                let instructions = [
-                    INC16(r16_operand),
-                    DEC16(r16_operand),
-                    ADDHL(r16_operand),
-                ];
+                let instructions = [INC16(r16_operand), DEC16(r16_operand), ADDHL(r16_operand)];
 
                 for instruction in instructions {
                     assert_decode(instruction, expected_size);
@@ -798,7 +795,6 @@ mod tests {
         // ld [r16mem], a/ld a, [r16mem]
         {
             let expected_size = 1;
-
 
             for operand in 0..=3 {
                 let r16mem_operand = R16MemOperand::from_byte(operand);
@@ -986,6 +982,161 @@ mod tests {
             for instruction in instructions {
                 assert_decode(instruction, expected_size);
             }
+        }
+    }
+}
+
+impl fmt::Display for Instruction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Instruction::*;
+        match self {
+            LD(dst, src) => write!(f, "LD {}, {}", dst, src),
+            LDImm8(dst, n) => write!(f, "LD {}, ${:02X}", dst, n),
+            LDFromMemToA(src) => write!(f, "LD A, ({})", src),
+            LDToMemFromA(dst) => write!(f, "LD ({}), A", dst),
+            LDFromImmIndToA16(addr) => write!(f, "LD A, (${:04X})", addr),
+            LDToImmIndFromA16(addr) => write!(f, "LD (${:04X}), A", addr),
+            LDToAFromCInd() => write!(f, "LDH A, (C)"),
+            LDFromAToCInd() => write!(f, "LDH (C), A"),
+            LDFromImmIndToA8(n) => write!(f, "LDH A, ($FF{:02X})", n),
+            LDToImmIndFromA8(n) => write!(f, "LDH ($FF{:02X}), A", n),
+
+            LDImm16(dst, nn) => write!(f, "LD {}, ${:04X}", dst, nn),
+            LDToImmIndFromSP(addr) => write!(f, "LD (${:04X}), SP", addr),
+            LDSPFromHL() => write!(f, "LD SP, HL"),
+            PUSH(src) => write!(f, "PUSH {}", src),
+            POP(dst) => write!(f, "POP {}", dst),
+            LDHLFromAdjustedSP(e) => write!(f, "LD HL, SP{:+}", e),
+
+            ADD(src) => write!(f, "ADD A, {}", src),
+            ADDImm(n) => write!(f, "ADD A, ${:02X}", n),
+            ADC(src) => write!(f, "ADC A, {}", src),
+            ADCImm(n) => write!(f, "ADC A, ${:02X}", n),
+            SUB(src) => write!(f, "SUB {}", src),
+            SUBImm(n) => write!(f, "SUB ${:02X}", n),
+            SBC(src) => write!(f, "SBC A, {}", src),
+            SBCImm(n) => write!(f, "SBC A, ${:02X}", n),
+            CP(src) => write!(f, "CP {}", src),
+            CPImm(n) => write!(f, "CP ${:02X}", n),
+            INC8(dst) => write!(f, "INC {}", dst),
+            DEC8(dst) => write!(f, "DEC {}", dst),
+
+            AND(src) => write!(f, "AND {}", src),
+            ANDImm(n) => write!(f, "AND ${:02X}", n),
+            OR(src) => write!(f, "OR {}", src),
+            ORImm(n) => write!(f, "OR ${:02X}", n),
+            XOR(src) => write!(f, "XOR {}", src),
+            XORImm(n) => write!(f, "XOR ${:02X}", n),
+
+            CCF() => write!(f, "CCF"),
+            SCF() => write!(f, "SCF"),
+            DAA() => write!(f, "DAA"),
+            CPL() => write!(f, "CPL"),
+
+            RLCA() => write!(f, "RLCA"),
+            RRCA() => write!(f, "RRCA"),
+            RRA() => write!(f, "RRA"),
+            RLA() => write!(f, "RLA"),
+
+            INC16(dst) => write!(f, "INC {}", dst),
+            DEC16(dst) => write!(f, "DEC {}", dst),
+            ADDHL(src) => write!(f, "ADD HL, {}", src),
+            ADDSPImm(e) => write!(f, "ADD SP, {:+}", e),
+
+            RLC(dst) => write!(f, "RLC {}", dst),
+            RRC(dst) => write!(f, "RRC {}", dst),
+            RL(dst) => write!(f, "RL {}", dst),
+            RR(dst) => write!(f, "RR {}", dst),
+            SRA(dst) => write!(f, "SRA {}", dst),
+            SLA(dst) => write!(f, "SLA {}", dst),
+            SRL(dst) => write!(f, "SRL {}", dst),
+            SWAP(dst) => write!(f, "SWAP {}", dst),
+
+            BIT(b, src) => write!(f, "BIT {}, {}", b, src),
+            RESET(b, dst) => write!(f, "RES {}, {}", b, dst),
+            SET(b, dst) => write!(f, "SET {}, {}", b, dst),
+
+            NOP() => write!(f, "NOP"),
+            JP(addr) => write!(f, "JP ${:04X}", addr),
+            JPHL() => write!(f, "JP HL"),
+            JPCC(cond, addr) => write!(f, "JP {}, ${:04X}", cond, addr),
+            JR(e) => write!(f, "JR {:+}", e),
+            JRCC(cond, e) => write!(f, "JR {}, {:+}", cond, e),
+            CALL(addr) => write!(f, "CALL ${:04X}", addr),
+            CALLCC(cond, addr) => write!(f, "CALL {}, ${:04X}", cond, addr),
+            RET() => write!(f, "RET"),
+            RETCC(cond) => write!(f, "RET {}", cond),
+            RETI() => write!(f, "RETI"),
+            RST(vec) => write!(f, "RST ${:02X}", vec),
+
+            HALT() => write!(f, "HALT"),
+            STOP() => write!(f, "STOP"),
+            DI() => write!(f, "DI"),
+            EI() => write!(f, "EI"),
+        }
+    }
+}
+
+impl fmt::Display for R8Operand {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use R8Operand::*;
+        match self {
+            B => write!(f, "B"),
+            C => write!(f, "C"),
+            D => write!(f, "D"),
+            E => write!(f, "E"),
+            H => write!(f, "H"),
+            L => write!(f, "L"),
+            HLInd => write!(f, "(HL)"),
+            A => write!(f, "A"),
+        }
+    }
+}
+
+impl fmt::Display for R16Operand {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use R16Operand::*;
+        match self {
+            BC => write!(f, "BC"),
+            DE => write!(f, "DE"),
+            HL => write!(f, "HL"),
+            SP => write!(f, "SP"),
+        }
+    }
+}
+
+impl fmt::Display for R16StkOperand {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use R16StkOperand::*;
+        match self {
+            BC => write!(f, "BC"),
+            DE => write!(f, "DE"),
+            HL => write!(f, "HL"),
+            AF => write!(f, "AF"),
+        }
+    }
+}
+
+impl fmt::Display for R16MemOperand {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use R16MemOperand::*;
+        match self {
+            BC => write!(f, "BC"),
+            DE => write!(f, "DE"),
+            HLI => write!(f, "HL+"),
+            HLD => write!(f, "HL-"),
+        }
+    }
+}
+
+impl fmt::Display for FlowCondition {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use FlowCondition::*;
+        match self {
+            NotZero => write!(f, "NZ"),
+            Zero => write!(f, "Z"),
+            NotCarry => write!(f, "NC"),
+            Carry => write!(f, "C"),
         }
     }
 }

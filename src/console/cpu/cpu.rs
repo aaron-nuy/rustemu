@@ -1,7 +1,5 @@
 use crate::console::bus::*;
 use crate::console::cpu::instruction::*;
-use crate::console::hw_register::HwRegisterAddr;
-use crate::console::interrupt::Interrupt;
 use crate::console::utils::bit_utils;
 
 #[derive(Default)]
@@ -33,7 +31,7 @@ impl Cpu {
             _h: 0x01,
             _l: 0x4D,
             _f: 0xB0,
-            _pc: 0x100,
+            _pc: 0x00,
             _sp: 0xFFFE,
             _previous_instruction_was_ei: false,
             _halt_bug_triggered: false,
@@ -1065,8 +1063,7 @@ impl Cpu {
         if bus.get_interrupt().is_some() && !self._interrupts_enabled {
             self._halted = false;
             self._halt_bug_triggered = true;
-        }
-        else {
+        } else {
             self._halted = true;
         }
         1
@@ -1076,8 +1073,7 @@ impl Cpu {
         if bus.get_interrupt().is_some() && !self._interrupts_enabled {
             self._halted = false;
             self._halt_bug_triggered = true;
-        }
-        else {
+        } else {
             self._halted = true;
         }
         1
@@ -1127,7 +1123,6 @@ impl Cpu {
     }
 
     pub fn clock(&mut self, bus: &mut Bus) -> u8 {
-
         if self.handle_interrupts(bus) {
             return 5;
         }
@@ -1142,7 +1137,7 @@ impl Cpu {
         }
 
         let (instruction, size) = self.decode_instruction_at_pc(bus);
-
+        
         self.step(size);
 
         let cycles = self.execute(instruction, bus);

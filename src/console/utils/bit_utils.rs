@@ -1,5 +1,9 @@
 pub fn modify_bit(value: u8, bit_position: u8, on: bool) -> u8 {
-    if on { value | (1 << bit_position) } else { value & !(1 << bit_position) }
+    if on {
+        value | (1 << bit_position)
+    } else {
+        value & !(1 << bit_position)
+    }
 }
 
 pub fn colors_to_argb(r: u8, g: u8, b: u8) -> u32 {

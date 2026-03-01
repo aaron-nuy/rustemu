@@ -1,22 +1,20 @@
+use console::gameboy::Gameboy;
 use std::env;
-use std::process::exit;
-use console::gameboy::{Gameboy};
 
 mod console;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    if args.len() < 2 {
-        println!("Usage: {} [rom file]", args[0]);
-        exit(2);
+    let mut rom_file = "dr_mario.gb".to_string();
+    //let mut rom_file = "test_roms/01-special.gb".to_string();
+    if args.len() >= 2 {
+        rom_file = args[1].clone();
     }
-
-    let rom_file = &args[1];
 
     let mut gameboy = Gameboy::new();
 
-    gameboy.load(rom_file);
+    gameboy.load(&rom_file);
 
     gameboy.run();
 }

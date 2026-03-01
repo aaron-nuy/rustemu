@@ -7,7 +7,7 @@ pub enum R8Operand {
     H,
     L,
     HLInd,
-    A
+    A,
 }
 
 impl R8Operand {
@@ -21,7 +21,7 @@ impl R8Operand {
             5 => R8Operand::L,
             6 => R8Operand::HLInd,
             7 => R8Operand::A,
-            _ => panic!("Unknown R8Operand {}", byte)
+            _ => panic!("Unknown R8Operand {}", byte),
         }
     }
 
@@ -37,7 +37,6 @@ impl R8Operand {
             R8Operand::A => 7,
         }
     }
-
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -45,7 +44,7 @@ pub enum R16Operand {
     BC,
     DE,
     HL,
-    SP
+    SP,
 }
 
 impl R16Operand {
@@ -55,7 +54,7 @@ impl R16Operand {
             1 => R16Operand::DE,
             2 => R16Operand::HL,
             3 => R16Operand::SP,
-            _ => panic!("Unknown R16Operand {}", byte)
+            _ => panic!("Unknown R16Operand {}", byte),
         }
     }
 
@@ -74,7 +73,7 @@ pub enum R16StkOperand {
     BC,
     DE,
     HL,
-    AF
+    AF,
 }
 
 impl R16StkOperand {
@@ -84,7 +83,7 @@ impl R16StkOperand {
             1 => R16StkOperand::DE,
             2 => R16StkOperand::HL,
             3 => R16StkOperand::AF,
-            _ => panic!("Unknown R16StkOperand {}", byte)
+            _ => panic!("Unknown R16StkOperand {}", byte),
         }
     }
 
@@ -103,7 +102,7 @@ pub enum R16MemOperand {
     BC,
     DE,
     HLI,
-    HLD
+    HLD,
 }
 
 impl R16MemOperand {
@@ -113,7 +112,7 @@ impl R16MemOperand {
             1 => R16MemOperand::DE,
             2 => R16MemOperand::HLI,
             3 => R16MemOperand::HLD,
-            _ => panic!("Unknown R16MemOperand {}", byte)
+            _ => panic!("Unknown R16MemOperand {}", byte),
         }
     }
 
@@ -132,7 +131,7 @@ pub enum FlowCondition {
     NotZero,
     Zero,
     NotCarry,
-    Carry
+    Carry,
 }
 
 impl FlowCondition {
@@ -151,7 +150,7 @@ impl FlowCondition {
             FlowCondition::NotZero => 0,
             FlowCondition::Zero => 1,
             FlowCondition::NotCarry => 2,
-            FlowCondition::Carry => 3
+            FlowCondition::Carry => 3,
         }
     }
 }

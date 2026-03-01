@@ -1,6 +1,6 @@
 use crate::console::bus::Bus;
-use crate::console::hw_register::HwRegisterAddr;
 use crate::console::constants::*;
+use crate::console::hw_register::HwRegisterAddr;
 use crate::console::interrupt::Interrupt;
 
 #[derive(Default)]
@@ -11,7 +11,6 @@ pub struct Timer {
 }
 
 impl Timer {
-
     pub fn new() -> Self {
         Self::default()
     }
@@ -42,8 +41,7 @@ impl Timer {
             if overflow {
                 bus.write_to_8b(HwRegisterAddr::TIMA as u16, tma);
                 bus.trigger_interrupt(Interrupt::Timer);
-            }
-            else {
+            } else {
                 bus.write_to_8b(HwRegisterAddr::TIMA as u16, new_tima);
             }
         }
@@ -69,5 +67,4 @@ impl Timer {
             _ => unreachable!(),
         }
     }
-
 }

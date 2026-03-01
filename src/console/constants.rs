@@ -4,11 +4,33 @@ pub const CARTRIDGE_SIZE: usize = 0x7fff;
 
 pub const TIMER_DIV_INC_RATE: u64 = 0x100;
 
+pub const OAM_BEGIN: u16 = 0xFE00;
+pub const OAM_END: u16 = 0xFE9F;
+pub const OAM_SIZE: u16 = OAM_END - OAM_BEGIN + 1;
+pub const OAM_ENTRY_SIZE: u16 = 4;
+pub const VRAM_BEGIN: u16 = 0x8000;
+pub const VRAM_END: u16 = 0x9FFF;
+pub const VRAM_SIZE: u16 = VRAM_END - VRAM_BEGIN + 1;
+pub const TILE_SIZE: u16 = 0x10;
+pub const TILE_BLOCK_0: u16 = 0x8000;
+pub const TILE_BLOCK_1: u16 = 0x8800;
+pub const TILE_BLOCK_2: u16 = 0x9000;
+pub const TILE_BLOCK_SIZE: u16 = 0x800;
+pub const TILE_MAP_DIMS: u16 = 32;
+pub const TILE_DIMS: u16 = 8;
+pub const TILE_MAP_1_BEGIN: u16 = 0x9800;
+pub const TILE_MAP_2_BEGIN: u16 = 0x9C00;
+pub const TILE_MAP_SIZE: u16 = TILE_MAP_DIMS * TILE_MAP_DIMS;
+
+
 pub const SCREEN_WIDTH: usize = 160;
 pub const SCREEN_HEIGHT: usize = 144;
 pub const BUFFER_SIZE: usize = SCREEN_WIDTH * SCREEN_HEIGHT;
 
-pub const BOOT_ROM: [u8; 0x100] = [
+
+pub const BOOT_ROM_DISABLE_ADDR: u16 = 0xFF50;
+pub const BOOT_ROM_SIZE: usize = 0x100;
+pub const BOOT_ROM: [u8; BOOT_ROM_SIZE] = [
     0x31, 0xFE, 0xFF, 0xAF, 0x21, 0xFF, 0x9F, 0x32, 0xCB, 0x7C, 0x20, 0xFB, 0x21, 0x26, 0xFF, 0x0E,
     0x11, 0x3E, 0x80, 0x32, 0xE2, 0x0C, 0x3E, 0xF3, 0xE2, 0x32, 0x3E, 0x77, 0x77, 0x3E, 0xFC, 0xE0,
     0x47, 0x11, 0x04, 0x01, 0x21, 0x10, 0x80, 0x1A, 0xCD, 0x95, 0x00, 0xCD, 0x96, 0x00, 0x13, 0x7B,

@@ -1,9 +1,11 @@
 use crate::console::constants::SCREEN_HEIGHT;
 use crate::console::constants::SCREEN_WIDTH;
 use crate::console::gui::display::*;
+use crate::console::gui::gpu::PixelLevel;
 use crate::console::gui::input::*;
 use crate::console::utils::bit_utils::colors_to_argb;
 use minifb::{Key, Window, WindowOptions};
+use std::time::UNIX_EPOCH;
 
 pub struct Gui {
     _window: Window,
@@ -29,17 +31,17 @@ impl Gui {
         }
     }
 
-    pub fn update(&mut self) -> minifb::Result<()> {
+    pub fn update(
+        &mut self,
+        gpu_output: &[PixelLevel; SCREEN_WIDTH * SCREEN_HEIGHT],
+    ) -> minifb::Result<()> {
         for y in 0..SCREEN_HEIGHT {
             for x in 0..SCREEN_WIDTH {
                 let idx: usize = SCREEN_WIDTH * y + x;
 
-                if self._window.is_key_down(Key::Left) {
-                    self._display.buffer[idx] =
-                        colors_to_argb(y as u8, x as u8, ((x + y) / 2) as u8);
-                }
+                let val = gpu_output[idx].to_int();
 
-                self._display.buffer[idx] = colors_to_argb(y as u8, x as u8, ((x + y) / 2) as u8);
+                self._display.buffer[idx] = colors_to_argb(val, val, val);
             }
         }
 

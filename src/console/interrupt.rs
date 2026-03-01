@@ -8,7 +8,6 @@ pub enum Interrupt {
 }
 
 impl Interrupt {
-
     pub fn get_interrupt(mask: u8) -> Option<(Interrupt, u16)> {
         use Interrupt::*;
         match mask {
@@ -20,5 +19,4 @@ impl Interrupt {
             _ => None,
         }
     }
-
 }

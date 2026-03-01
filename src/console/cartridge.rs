@@ -5,7 +5,7 @@ pub struct Cartridge {
 impl Cartridge {
     pub fn new() -> Self {
         Self {
-            rom: Box::new([0;crate::console::constants::CARTRIDGE_SIZE])
+            rom: Box::new([0; crate::console::constants::CARTRIDGE_SIZE]),
         }
     }
 }

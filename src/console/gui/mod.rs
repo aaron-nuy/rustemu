@@ -1,4 +1,4 @@
 mod display;
-mod input;
-
+pub mod gpu;
 pub mod gui;
+mod input;

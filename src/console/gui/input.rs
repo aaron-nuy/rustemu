@@ -1,7 +1,5 @@
 #[derive(Default)]
-pub struct Input {
-    
-}
+pub struct Input {}
 
 impl Input {
     pub fn new() -> Self {
