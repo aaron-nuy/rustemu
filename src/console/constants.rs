@@ -1,9 +1,10 @@
 pub const MEMORY_SIZE: usize = 0x10000;
 
-pub const CARTRIDGE_SIZE: usize = 0x7fff;
+pub const CARTRIDGE_SIZE: usize = 0x8000;
 
 pub const TIMER_DIV_INC_RATE: u64 = 0x100;
 
+pub const DMA_DIV: u16 = 0x100;
 pub const OAM_BEGIN: u16 = 0xFE00;
 pub const OAM_END: u16 = 0xFE9F;
 pub const OAM_SIZE: u16 = OAM_END - OAM_BEGIN + 1;

@@ -5,7 +5,7 @@ use crate::console::timer::Timer;
 use std::fs;
 use std::path::Path;
 use std::thread::sleep;
-use crate::console::hw_register::{HwRegisterAddr, HwRegisters};
+use crate::console::hw_register::{HwRegister, HwRegisters};
 use crate::console::interrupt::Interrupt::VBlank;
 
 pub struct Gameboy {
@@ -30,7 +30,8 @@ impl Gameboy {
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(cartridge_path);
         let data = fs::read(path).expect("Failed to read file");
 
-        self.bus.load_rom(data);
+        assert_eq!(data.len(), crate::console::constants::CARTRIDGE_SIZE);
+        self.bus.fill_cartridge(data);
     }
 
     pub fn run(&mut self) {
@@ -43,7 +44,7 @@ impl Gameboy {
             cycles_since_last_render += instruction_c_cycles;
 
             if cycles_since_last_render >= RENDER_FREQUENCY / 64 {
-                self.bus.write_to_8b(HwRegisterAddr::LY.to_addr(), 144);
+                self.bus.write_to_8b(HwRegister::LY as u16, 144);
                 let gpu_out = self.bus.gpu.tick(instruction_c_cycles, &self.bus);
                 self.gui.update(&gpu_out).unwrap();
                 cycles_since_last_render = 0;

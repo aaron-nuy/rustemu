@@ -1,6 +1,6 @@
 use crate::console::bus::Bus;
 use crate::console::constants::*;
-use crate::console::hw_register::{HwRegisterAddr, HwRegisters};
+use crate::console::hw_register::{HwRegister, HwRegisters};
 use std::ops::{BitAnd, Sub};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -83,7 +83,7 @@ enum LCDCFlag {
 }
 
 #[repr(u8)]
-enum OAMFlag {
+enum OAMFlagMask {
     CgbPalette = 0b0000_0111,
     Bank = 0b0000_1000,
     DmgPalette = 0b0001_0000,
@@ -141,6 +141,7 @@ impl OAMEntry {
 }
 
 pub struct Gpu {
+    dot_cycles: u64,
     pub vram: [u8; VRAM_SIZE as usize],
     pub oam: [u8; OAM_SIZE as usize],
 }
@@ -148,6 +149,7 @@ pub struct Gpu {
 impl Gpu {
     pub fn new() -> Self {
         Self {
+            dot_cycles: 0,
             vram: [0; VRAM_SIZE as usize],
             oam: [0; OAM_SIZE as usize],
         }
@@ -205,7 +207,7 @@ impl Gpu {
     }
 
     fn translate_pixel_level_bgp(&self, pixel_level: PixelLevel, bus: &Bus) -> PixelLevel {
-        let bgp = bus.read_from_8b(HwRegisterAddr::BGP.to_addr());
+        let bgp = bus.read_from_8b(HwRegister::BGP as u16);
         PixelLevel::from_byte((bgp >> (pixel_level as u8 * 2)) & 0b11)
     }
 
@@ -222,9 +224,9 @@ impl Gpu {
         }
 
         let register_addr = if obp_1 {
-            HwRegisterAddr::OBP1.to_addr()
+            HwRegister::OBP1 as u16
         } else {
-            HwRegisterAddr::OBP0.to_addr()
+            HwRegister::OBP0 as u16
         };
         let register = bus.read_from_8b(register_addr);
         Some(PixelLevel::from_byte((register >> (pixel_level as u8 * 2)) & 0b11))
@@ -236,8 +238,8 @@ impl Gpu {
         background_tile_map: &[Tile; TILE_MAP_SIZE as usize],
         bus: &Bus,
     ) {
-        let scx = bus.read_from_8b(HwRegisterAddr::SCX.to_addr());
-        let scy = bus.read_from_8b(HwRegisterAddr::SCY.to_addr());
+        let scx = bus.read_from_8b(HwRegister::SCX as u16);
+        let scy = bus.read_from_8b(HwRegister::SCY as u16);
 
         for y in 0..SCREEN_HEIGHT {
             for x in 0..SCREEN_WIDTH {
@@ -266,8 +268,8 @@ impl Gpu {
         window_tile_map: &[Tile; TILE_MAP_SIZE as usize],
         bus: &Bus,
     ) {
-        let wx = bus.read_from_8b(HwRegisterAddr::WX.to_addr());
-        let wy = bus.read_from_8b(HwRegisterAddr::WY.to_addr());
+        let wx = bus.read_from_8b(HwRegister::WX as u16);
+        let wy = bus.read_from_8b(HwRegister::WY as u16);
 
         for y in 0..SCREEN_HEIGHT {
             for x in 0..SCREEN_WIDTH {
@@ -304,7 +306,7 @@ impl Gpu {
     pub fn tick(&self, cycles: u64, bus: &Bus) -> [PixelLevel; SCREEN_WIDTH * SCREEN_HEIGHT] {
         let mut frame_buffer = [PixelLevel::Zero; SCREEN_WIDTH * SCREEN_HEIGHT];
 
-        let lcdc = bus.read_from_8b(HwRegisterAddr::LCDC.to_addr());
+        let lcdc = bus.read_from_8b(HwRegister::LCDC as u16);
 
         let no_use_signed_addressing = lcdc & (LCDCFlag::NoSignedAddressing as u8) != 0;
         let object_tile_map = self.extract_tile_map(false, true, no_use_signed_addressing);

@@ -1,5 +1,5 @@
 pub struct Cartridge {
-    rom: Box<[u8; crate::console::constants::CARTRIDGE_SIZE]>,
+    pub rom: Box<[u8; crate::console::constants::CARTRIDGE_SIZE]>,
 }
 
 impl Cartridge {

@@ -1,6 +1,6 @@
 use crate::console::bus::Bus;
 use crate::console::constants::*;
-use crate::console::hw_register::HwRegisterAddr;
+use crate::console::hw_register::HwRegister;
 use crate::console::interrupt::Interrupt;
 
 #[derive(Default)]
@@ -23,26 +23,26 @@ impl Timer {
     }
 
     fn inc_tima(&mut self, bus: &mut Bus) {
-        let tac = bus.read_from_8b(HwRegisterAddr::TAC as u16);
+        let tac = bus.read_from_8b(HwRegister::TAC as u16);
 
         if (tac & 0b100) == 0 {
             return;
         }
 
         let tac_cycle = Self::cycle_from_tac(tac);
-        let tma = bus.read_from_8b(HwRegisterAddr::TMA as u16);
+        let tma = bus.read_from_8b(HwRegister::TMA as u16);
 
         while self._c_cycles_since_tima >= tac_cycle {
             self._c_cycles_since_tima -= tac_cycle;
 
-            let current_tima = bus.read_from_8b(HwRegisterAddr::TIMA as u16);
+            let current_tima = bus.read_from_8b(HwRegister::TIMA as u16);
             let (new_tima, overflow) = current_tima.overflowing_add(1);
 
             if overflow {
-                bus.write_to_8b(HwRegisterAddr::TIMA as u16, tma);
+                bus.write_to_8b(HwRegister::TIMA as u16, tma);
                 bus.trigger_interrupt(Interrupt::Timer);
             } else {
-                bus.write_to_8b(HwRegisterAddr::TIMA as u16, new_tima);
+                bus.write_to_8b(HwRegister::TIMA as u16, new_tima);
             }
         }
     }
