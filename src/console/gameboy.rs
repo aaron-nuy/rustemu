@@ -1,12 +1,10 @@
 use crate::console::bus::Bus;
 use crate::console::cpu::cpu::Cpu;
 use crate::console::gui::gui::Gui;
+use crate::console::hw_register::HwRegister;
 use crate::console::timer::Timer;
 use std::fs;
 use std::path::Path;
-use std::thread::sleep;
-use crate::console::hw_register::{HwRegister, HwRegisters};
-use crate::console::interrupt::Interrupt::VBlank;
 
 pub struct Gameboy {
     cpu: Cpu,
@@ -36,24 +34,26 @@ impl Gameboy {
 
     pub fn run(&mut self) {
         let mut cycles_since_last_render = 0;
-        const RENDER_FREQUENCY: u64 = 70224;
-        loop {
-            let instruction_c_cycles = (self.cpu.clock(&mut self.bus) as u64) * 4;
-            self.timer.tick(instruction_c_cycles, &mut self.bus);
+        let mut dot_cycles_to_run_cpu = 0;
 
-            cycles_since_last_render += instruction_c_cycles;
+        // Cpu ticks every (X machine cycles (returned by cpu) * 4) loops
+        // Gpu, DMA, timer tick every loop
+        while !self.gui.should_close() {
+            if dot_cycles_to_run_cpu == 0 {
+                dot_cycles_to_run_cpu = (self.cpu.clock(&mut self.bus) as u64) * 4;
+            }
 
-            if cycles_since_last_render >= RENDER_FREQUENCY / 64 {
+            self.timer.tick(1, &mut self.bus);
+
+            if cycles_since_last_render >= 8023400 {
                 self.bus.write_to_8b(HwRegister::LY as u16, 144);
-                let gpu_out = self.bus.gpu.tick(instruction_c_cycles, &self.bus);
+                let gpu_out = self.bus.gpu.tick(1, &self.bus);
                 self.gui.update(&gpu_out).unwrap();
                 cycles_since_last_render = 0;
             }
 
-            if self.gui.should_close() {
-                break;
-            }
-
+            cycles_since_last_render += 1;
+            dot_cycles_to_run_cpu -= 1;
         }
     }
 }

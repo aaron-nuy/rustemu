@@ -51,6 +51,13 @@ impl HwRegister {
     pub fn from_addr(addr: u16) -> HwRegister {
         HwRegister::try_from(addr).unwrap()
     }
+
+    pub fn supported_addr(addr: u16) -> bool {
+        match HwRegister::try_from(addr) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -97,17 +104,4 @@ pub struct HwRegisters {
     pub _wy: u8,
     pub _wx: u8,
     pub _ie: u8,
-}
-
-impl HwRegisters {
-    pub fn supported_addr(addr: u16) -> bool {
-        match addr {
-            0xff00 | 0xff01 | 0xff02 | 0xff04 | 0xff05 | 0xff06 | 0xff07 | 0xff0f | 0xff10
-            | 0xff11 | 0xff12 | 0xff13 | 0xff14 | 0xff16 | 0xff17 | 0xff18 | 0xff19 | 0xff1a
-            | 0xff1b | 0xff1c | 0xff1d | 0xff1e | 0xff20 | 0xff21 | 0xff22 | 0xff23 | 0xff24
-            | 0xff25 | 0xff26 | 0xff40 | 0xff41 | 0xff42 | 0xff43 | 0xff44 | 0xff45 | 0xff46
-            | 0xff47 | 0xff48 | 0xff49 | 0xff4a | 0xff4b | 0xffff => true,
-            _ => false,
-        }
-    }
 }

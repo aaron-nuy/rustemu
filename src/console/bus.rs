@@ -22,7 +22,7 @@ impl Bus {
             addr if addr == BOOT_ROM_DISABLE_ADDR => {
                 self.boot_rom_enabled = false;
             }
-            addr if HwRegisters::supported_addr(addr) => {
+            addr if HwRegister::supported_addr(addr) => {
                 use HwRegister::*;
                 let hw_register_addr = HwRegister::from_addr(addr);
                 match hw_register_addr {
@@ -71,7 +71,10 @@ impl Bus {
                     SCX => self.hw_registers._scx = value,
                     LY => self.hw_registers._ly = value,
                     LYC => self.hw_registers._lyc = value,
-                    DMA => self.hw_registers._dma = value,
+                    DMA => {
+                        self.hw_registers._dma = value;
+                        
+                    }
                     BGP => self.hw_registers._bgp = value,
                     OBP0 => self.hw_registers._obp0 = value,
                     OBP1 => self.hw_registers._obp1 = value,
@@ -92,7 +95,7 @@ impl Bus {
             addr if self.boot_rom_enabled && addr < BOOT_ROM_SIZE as u16 => {
                 self.boot_rom[addr as usize]
             }
-            addr if HwRegisters::supported_addr(addr) => {
+            addr if HwRegister::supported_addr(addr) => {
                 use HwRegister::*;
                 let hw_register_addr = HwRegister::from_addr(addr);
                 match hw_register_addr {
