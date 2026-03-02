@@ -1122,7 +1122,7 @@ impl Cpu {
         true
     }
 
-    pub fn clock(&mut self, bus: &mut Bus) -> u8 {
+    pub fn tick(&mut self, bus: &mut Bus) -> u8 {
         if self.handle_interrupts(bus) {
             return 5;
         }
@@ -1137,7 +1137,7 @@ impl Cpu {
         }
 
         let (instruction, size) = self.decode_instruction_at_pc(bus);
-        
+
         self.step(size);
 
         let cycles = self.execute(instruction, bus);

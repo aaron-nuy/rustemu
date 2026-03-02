@@ -75,11 +75,13 @@ impl Tile {
 #[repr(u8)]
 enum LCDCFlag {
     BackgroundEnabled = 0b0000_0001,
-    LongSpriteEnabled = 0b0000_0010,
+    ObjEnabled = 0b0000_0010,
+    LongSpriteEnabled = 0b0000_0100,
     UseTileMap2Bg = 0b0000_1000,
     NoSignedAddressing = 0b0001_0000,
     WindowEnabled = 0b0010_0000,
     UseTimeMap2Wd = 0b0100_0000,
+    GpuEnabled = 0b1000_0000,
 }
 
 #[repr(u8)]
@@ -144,6 +146,7 @@ pub struct Gpu {
     dot_cycles: u64,
     pub vram: [u8; VRAM_SIZE as usize],
     pub oam: [u8; OAM_SIZE as usize],
+    pub buffer: [PixelLevel; SCREEN_WIDTH * SCREEN_HEIGHT],
 }
 
 impl Gpu {
@@ -152,6 +155,7 @@ impl Gpu {
             dot_cycles: 0,
             vram: [0; VRAM_SIZE as usize],
             oam: [0; OAM_SIZE as usize],
+            buffer: [PixelLevel::Zero; SCREEN_WIDTH * SCREEN_HEIGHT],
         }
     }
 
@@ -206,8 +210,12 @@ impl Gpu {
         tile_map
     }
 
-    fn translate_pixel_level_bgp(&self, pixel_level: PixelLevel, bus: &Bus) -> PixelLevel {
-        let bgp = bus.read_from_8b(HwRegister::BGP as u16);
+    fn translate_pixel_level_bgp(
+        &self,
+        pixel_level: PixelLevel,
+        hw_registers: &HwRegisters,
+    ) -> PixelLevel {
+        let bgp = hw_registers._bgp;
         PixelLevel::from_byte((bgp >> (pixel_level as u8 * 2)) & 0b11)
     }
 
@@ -217,7 +225,6 @@ impl Gpu {
         obp_1: bool,
         bus: &Bus,
     ) -> Option<PixelLevel> {
-
         // Pixel index zero is transparent
         if pixel_level == PixelLevel::Zero {
             return None;
@@ -229,17 +236,18 @@ impl Gpu {
             HwRegister::OBP0 as u16
         };
         let register = bus.read_from_8b(register_addr);
-        Some(PixelLevel::from_byte((register >> (pixel_level as u8 * 2)) & 0b11))
+        Some(PixelLevel::from_byte(
+            (register >> (pixel_level as u8 * 2)) & 0b11,
+        ))
     }
 
     fn render_background(
-        &self,
-        buffer: &mut [PixelLevel; SCREEN_WIDTH * SCREEN_HEIGHT],
+        &mut self,
         background_tile_map: &[Tile; TILE_MAP_SIZE as usize],
-        bus: &Bus,
+        hw_registers: &HwRegisters,
     ) {
-        let scx = bus.read_from_8b(HwRegister::SCX as u16);
-        let scy = bus.read_from_8b(HwRegister::SCY as u16);
+        let scx = hw_registers._scx;
+        let scy = hw_registers._scy;
 
         for y in 0..SCREEN_HEIGHT {
             for x in 0..SCREEN_WIDTH {
@@ -257,19 +265,19 @@ impl Gpu {
 
                 let pixel_level = tile.read_pixel(tile_x as usize, tile_y as usize);
 
-                buffer[y * SCREEN_WIDTH + x] = self.translate_pixel_level_bgp(pixel_level, bus);
+                self.buffer[y * SCREEN_WIDTH + x] =
+                    self.translate_pixel_level_bgp(pixel_level, &hw_registers);
             }
         }
     }
 
     fn render_window(
-        &self,
-        buffer: &mut [PixelLevel; SCREEN_WIDTH * SCREEN_HEIGHT],
+        &mut self,
         window_tile_map: &[Tile; TILE_MAP_SIZE as usize],
-        bus: &Bus,
+        hw_registers: &HwRegisters,
     ) {
-        let wx = bus.read_from_8b(HwRegister::WX as u16);
-        let wy = bus.read_from_8b(HwRegister::WY as u16);
+        let wx = hw_registers._wx;
+        let wy = hw_registers._wy;
 
         for y in 0..SCREEN_HEIGHT {
             for x in 0..SCREEN_WIDTH {
@@ -298,32 +306,52 @@ impl Gpu {
 
                 let pixel_level = tile.read_pixel(tile_x as usize, tile_y as usize);
 
-                buffer[y * SCREEN_WIDTH + x] = self.translate_pixel_level_bgp(pixel_level, bus);
+                self.buffer[y * SCREEN_WIDTH + x] =
+                    self.translate_pixel_level_bgp(pixel_level, &hw_registers);
             }
         }
     }
 
-    pub fn tick(&self, cycles: u64, bus: &Bus) -> [PixelLevel; SCREEN_WIDTH * SCREEN_HEIGHT] {
-        let mut frame_buffer = [PixelLevel::Zero; SCREEN_WIDTH * SCREEN_HEIGHT];
+    pub fn tick(&mut self, hw_registers: &mut HwRegisters) {
+        let lcdc = hw_registers._lcdc;
 
-        let lcdc = bus.read_from_8b(HwRegister::LCDC as u16);
-
-        let no_use_signed_addressing = lcdc & (LCDCFlag::NoSignedAddressing as u8) != 0;
-        let object_tile_map = self.extract_tile_map(false, true, no_use_signed_addressing);
-
-        if lcdc & (LCDCFlag::BackgroundEnabled as u8) != 0 {
-            let use_tile_map_2_bg = lcdc & (LCDCFlag::UseTileMap2Bg as u8) != 0;
-            let background_tile_map =
-                self.extract_tile_map(use_tile_map_2_bg, false, no_use_signed_addressing);
-            self.render_background(&mut frame_buffer, &background_tile_map, bus);
-            if lcdc & (LCDCFlag::WindowEnabled as u8) != 0 {
-                let use_tile_map_2_wd = lcdc & (LCDCFlag::UseTimeMap2Wd as u8) != 0;
-                let window_tile_map =
-                    self.extract_tile_map(use_tile_map_2_wd, false, no_use_signed_addressing);
-                self.render_window(&mut frame_buffer, &window_tile_map, bus);
+        if lcdc & (LCDCFlag::GpuEnabled as u8) == 0 {
+            self.dot_cycles = 0;
+            // gpu is disabled anyway, who cares about performance
+            for y in 0..SCREEN_HEIGHT {
+                for x in 0..SCREEN_WIDTH {
+                    self.buffer[y * SCREEN_WIDTH + x] = PixelLevel::Zero;
+                }
             }
+            return;
         }
 
-        frame_buffer
+        hw_registers._ly = ((self.dot_cycles / DOTS_PER_SCANLINE) % NUMBER_SCANLINES) as u8;
+
+        if (hw_registers._ly < SCREEN_HEIGHT as u8) {
+            let no_use_signed_addressing = lcdc & (LCDCFlag::NoSignedAddressing as u8) != 0;
+
+            if lcdc & (LCDCFlag::BackgroundEnabled as u8) != 0 {
+                let use_tile_map_2_bg = lcdc & (LCDCFlag::UseTileMap2Bg as u8) != 0;
+                let background_tile_map =
+                    self.extract_tile_map(use_tile_map_2_bg, false, no_use_signed_addressing);
+                self.render_background(&background_tile_map, &hw_registers);
+                if lcdc & (LCDCFlag::WindowEnabled as u8) != 0 {
+                    let use_tile_map_2_wd = lcdc & (LCDCFlag::UseTimeMap2Wd as u8) != 0;
+                    let window_tile_map =
+                        self.extract_tile_map(use_tile_map_2_wd, false, no_use_signed_addressing);
+                    self.render_window(&window_tile_map, &hw_registers);
+                }
+            }
+
+            if lcdc & (LCDCFlag::ObjEnabled as u8) != 0 {
+                let object_tile_map = self.extract_tile_map(false, true, no_use_signed_addressing);
+            }
+        }
+        else {
+            print!("ly")
+        }
+
+        self.dot_cycles += 1;
     }
 }

@@ -47,10 +47,10 @@ impl Timer {
         }
     }
 
-    pub fn tick(&mut self, added_cycles: u64, bus: &mut Bus) {
-        self._c_cycles = self._c_cycles.wrapping_add(added_cycles);
-        self._c_cycles_since_tima = self._c_cycles_since_tima.wrapping_add(added_cycles);
-        self._c_cycles_since_div = self._c_cycles_since_div.wrapping_add(added_cycles);
+    pub fn tick(&mut self, bus: &mut Bus) {
+        self._c_cycles = self._c_cycles.wrapping_add(1);
+        self._c_cycles_since_tima = self._c_cycles_since_tima.wrapping_add(1);
+        self._c_cycles_since_div = self._c_cycles_since_div.wrapping_add(1);
 
         self.inc_tima(bus);
         self.inc_div(bus);

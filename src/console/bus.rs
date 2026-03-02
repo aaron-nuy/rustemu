@@ -1,7 +1,8 @@
 use crate::console::audio::Audio;
 use crate::console::cartridge::Cartridge;
 use crate::console::constants::*;
-use crate::console::gui::gpu::Gpu;
+use crate::console::dma::DMAData;
+use crate::console::gui::gpu::{Gpu, PixelLevel};
 use crate::console::hw_register::HwRegister;
 use crate::console::hw_register::HwRegisters;
 use crate::console::interrupt::Interrupt;
@@ -11,7 +12,8 @@ pub struct Bus {
     boot_rom: [u8; BOOT_ROM_SIZE],
     boot_rom_enabled: bool,
     cartridge: Cartridge,
-    pub gpu: Gpu,
+    gpu: Gpu,
+    dma_data: DMAData,
     audio: Audio,
     hw_registers: HwRegisters,
 }
@@ -69,11 +71,13 @@ impl Bus {
                     STAT => self.hw_registers._stat = value,
                     SCY => self.hw_registers._scy = value,
                     SCX => self.hw_registers._scx = value,
-                    LY => self.hw_registers._ly = value,
+                    LY => self.hw_registers._ly = value, // TODO: Make it read only for cpu
                     LYC => self.hw_registers._lyc = value,
                     DMA => {
                         self.hw_registers._dma = value;
-                        
+                        if (!self.dma_data.running) {
+                            self.dma_data.init_transfer_data(self.hw_registers._dma as u16 * DMA_MULT);
+                        }
                     }
                     BGP => self.hw_registers._bgp = value,
                     OBP0 => self.hw_registers._obp0 = value,
@@ -148,6 +152,8 @@ impl Bus {
         }
     }
 
+    //TODO: Maybe perform checks on who and when is attempting to access the bus and prevent it
+    //      if it shouldn't be accessing it during this period
     pub fn write_to_8b(&mut self, addr: u16, value: u8) {
         self.write_to_bus(addr, value);
     }
@@ -225,6 +231,37 @@ impl Bus {
             hw_registers: HwRegisters::default(),
             boot_rom: BOOT_ROM,
             boot_rom_enabled: true,
+            dma_data: DMAData::default()
         }
+    }
+
+    pub fn get_gpu_buffer(&self) -> &[PixelLevel; SCREEN_WIDTH * SCREEN_HEIGHT] {
+        &self.gpu.buffer
+    }
+
+    pub fn tick(&mut self) {
+        
+        if self.dma_data.running {
+            // Put at top to ensure one machine cycle delay
+            self.dma_data.dot_cycle_since_start += 1;
+
+            // transfers one byte every 4 dot cycles
+            if self.dma_data.dot_cycle_since_start % 4 == 0 {
+                let val_to_write = self.read_from_bus(self.dma_data.current_addr);
+
+                let offset = self.dma_data.current_addr.wrapping_sub(self.dma_data.start_addr);
+                let dest_addr = offset.wrapping_add(OAM_BEGIN);
+
+                self.write_to_bus(dest_addr, val_to_write);
+
+                if self.dma_data.current_addr == self.dma_data.start_addr + OAM_SIZE - 1 {
+                    self.dma_data.running = false;
+                }
+
+                self.dma_data.current_addr = self.dma_data.current_addr.wrapping_add(1);
+            }
+        }
+
+        self.gpu.tick(&mut self.hw_registers);
     }
 }

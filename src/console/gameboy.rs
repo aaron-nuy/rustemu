@@ -40,15 +40,14 @@ impl Gameboy {
         // Gpu, DMA, timer tick every loop
         while !self.gui.should_close() {
             if dot_cycles_to_run_cpu == 0 {
-                dot_cycles_to_run_cpu = (self.cpu.clock(&mut self.bus) as u64) * 4;
+                dot_cycles_to_run_cpu = (self.cpu.tick(&mut self.bus) as u64) * 4;
             }
 
-            self.timer.tick(1, &mut self.bus);
+            self.timer.tick(&mut self.bus);
+            self.bus.tick();
 
-            if cycles_since_last_render >= 8023400 {
-                self.bus.write_to_8b(HwRegister::LY as u16, 144);
-                let gpu_out = self.bus.gpu.tick(1, &self.bus);
-                self.gui.update(&gpu_out).unwrap();
+            if cycles_since_last_render >= 80400 / 64 {
+                self.gui.update(self.bus.get_gpu_buffer()).unwrap();
                 cycles_since_last_render = 0;
             }
 

@@ -1,16 +1,14 @@
 use crate::console::constants::SCREEN_HEIGHT;
 use crate::console::constants::SCREEN_WIDTH;
-use crate::console::gui::display::*;
 use crate::console::gui::gpu::PixelLevel;
 use crate::console::gui::input::*;
 use crate::console::utils::bit_utils::colors_to_argb;
 use minifb::{Key, Window, WindowOptions};
-use std::time::UNIX_EPOCH;
 
 pub struct Gui {
-    _window: Window,
-    _display: Display,
-    _input: Input,
+    window: Window,
+    display: [u32; SCREEN_WIDTH * SCREEN_HEIGHT],
+    input: Input,
 }
 
 impl Gui {
@@ -21,13 +19,13 @@ impl Gui {
             scale: minifb::Scale::X4,
             ..WindowOptions::default()
         };
-        let window = Window::new("rustemu", SCREEN_WIDTH, SCREEN_HEIGHT, window_options)
+        let m_window = Window::new("rustemu", SCREEN_WIDTH, SCREEN_HEIGHT, window_options)
             .expect("Unable to open window");
 
         Self {
-            _window: window,
-            _display: Display::new(),
-            _input: Input::new(),
+            window: m_window,
+            display: [0; SCREEN_WIDTH * SCREEN_HEIGHT],
+            input: Input::new(),
         }
     }
 
@@ -41,15 +39,15 @@ impl Gui {
 
                 let val = gpu_output[idx].to_int();
 
-                self._display.buffer[idx] = colors_to_argb(val, val, val);
+                self.display[idx] = colors_to_argb(val, val, val);
             }
         }
 
-        self._window
-            .update_with_buffer(self._display.buffer.as_ref(), SCREEN_WIDTH, SCREEN_HEIGHT)
+        self.window
+            .update_with_buffer(&self.display, SCREEN_WIDTH, SCREEN_HEIGHT)
     }
 
     pub fn should_close(&self) -> bool {
-        !self._window.is_open()
+        !self.window.is_open()
     }
 }
