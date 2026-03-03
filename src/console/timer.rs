@@ -40,7 +40,7 @@ impl Timer {
 
             if overflow {
                 bus.write_to_8b(HwRegister::TIMA as u16, tma);
-                bus.trigger_interrupt(Interrupt::Timer);
+                bus.request_interrupt(Interrupt::Timer);
             } else {
                 bus.write_to_8b(HwRegister::TIMA as u16, new_tima);
             }

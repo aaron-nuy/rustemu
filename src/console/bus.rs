@@ -1,7 +1,7 @@
 use crate::console::audio::Audio;
 use crate::console::cartridge::Cartridge;
 use crate::console::constants::*;
-use crate::console::gui::gpu::{Gpu, PixelLevel};
+use crate::console::gui::gpu::{Gpu, PixelLevel, STATFlag};
 use crate::console::hw_register::HwRegister;
 use crate::console::hw_register::HwRegisters;
 use crate::console::interrupt::Interrupt;
@@ -84,35 +84,19 @@ impl Bus {
     }
 
     pub fn get_interrupt(&self) -> Option<(Interrupt, u16)> {
-        let _ie = self.read_from_bus(HwRegister::IE as u16);
-        let _if = self.read_from_bus(HwRegister::IF as u16);
-        let interrupt_mask = _ie & _if;
-
-        Interrupt::get_interrupt(interrupt_mask)
+        self.hw_registers.get_interrupt()
     }
 
     pub fn unset_interrupt(&mut self, interrupt: Interrupt) {
-        let mut _if = self.read_from_bus(HwRegister::IF as u16);
-
-        _if &= !(interrupt as u8);
-
-        self.write_to_bus(HwRegister::IF as u16, _if);
+        self.hw_registers.unset_interrupt(interrupt);
     }
 
-    pub fn trigger_interrupt(&mut self, interrupt: Interrupt) {
-        let mut _if = self.read_from_bus(HwRegister::IF as u16);
-
-        _if |= interrupt as u8;
-
-        self.write_to_bus(HwRegister::IF as u16, _if);
+    pub fn request_interrupt(&mut self, interrupt: Interrupt) {
+        self.hw_registers.request_interrupt(interrupt);
     }
 
     pub fn inc_div(&mut self) {
         self.hw_registers.inc_div()
-    }
-
-    pub fn inc_tima(&mut self) {
-        self.hw_registers.inc_tima()
     }
 
     pub fn new() -> Self {
@@ -160,12 +144,14 @@ impl Bus {
             }
         }
 
+        self.hw_registers.update_stat_line();
+
         self.gpu.tick(&mut self.hw_registers);
 
-        if self.hw_registers.read_from_register(HwRegister::LY)
-            == self.hw_registers.read_from_register(HwRegister::LYC)
-        {
-            // Trigger something?
-        }
+        self.hw_registers.set_stat_gpu_mode(self.gpu.gpu_mode);
+
+        self.hw_registers.handle_lyc_cond();
+
+        self.hw_registers.handle_stat_line()
     }
 }

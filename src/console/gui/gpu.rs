@@ -1,7 +1,8 @@
+use std::ops::Sub;
 use crate::console::bus::Bus;
 use crate::console::constants::*;
 use crate::console::hw_register::{HwRegister, HwRegisters};
-use std::ops::{BitAnd, Sub};
+use crate::console::interrupt::Interrupt;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum PixelLevel {
@@ -62,7 +63,7 @@ impl Tile {
         let first_half: u8 = (line & 0xFF) as u8;
         let second_half: u8 = ((line >> 8) & 0xFF) as u8;
 
-        // the most significant bit represents the leftmost pixel so we reverse bit order
+        // the most significant bit represents the leftmost pixel, so we reverse bit order
         let shift = 7 - x;
 
         let msb = (first_half >> shift) & 0b1;
@@ -73,7 +74,7 @@ impl Tile {
 }
 
 #[repr(u8)]
-enum LCDCFlag {
+pub enum LCDCFlag {
     BackgroundEnabled = 0b0000_0001,
     ObjEnabled = 0b0000_0010,
     LongSpriteEnabled = 0b0000_0100,
@@ -85,13 +86,24 @@ enum LCDCFlag {
 }
 
 #[repr(u8)]
+pub enum STATFlag {
+    PPUMode = 0b0000_0011,
+    LYEqLYC = 0b0000_0100,
+    Mode0IntSelect = 0b0000_1000,
+    Mode1IntSelect = 0b0001_0000,
+    Mode2IntSelect = 0b0010_0000,
+    LYCIntSelect = 0b0100_0000,
+    __UNUSED__ = 0b1000_0000,
+}
+
+#[repr(u8)]
 enum OAMFlagMask {
-    CgbPalette = 0b0000_0111,
-    Bank = 0b0000_1000,
+    CgbPalette = 0b0000_0111, // unused dmg
+    Bank = 0b0000_1000,       // unused dmg
     DmgPalette = 0b0001_0000,
     XFlip = 0b0010_0000,
     YFlip = 0b0100_0000,
-    Priority = 0b1000_0000,
+    Priority = 0b1000_0000, // If 1 bg/window are drawn drawn on top of it, only indices 1,2,3 are drawn on top
 }
 struct OAMEntry {
     pub y: u8,
@@ -142,8 +154,9 @@ impl OAMEntry {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 #[repr(u8)]
-enum GpuMode {
+pub enum GpuMode {
     HBlank = 0b00,
     VBlank = 0b01,
     OamScan = 0b10,
@@ -152,18 +165,24 @@ enum GpuMode {
 
 pub struct Gpu {
     dots: u64,
+    pub gpu_mode: GpuMode,
     pub vram: [u8; VRAM_SIZE as usize],
     pub oam: [u8; OAM_SIZE as usize],
     pub buffer: [PixelLevel; SCREEN_WIDTH * SCREEN_HEIGHT],
+    bg_line: [PixelLevel; TILE_MAP_DIMS as usize * TILE_DIMS as usize],
+    wd_line: [PixelLevel; TILE_MAP_DIMS as usize * TILE_DIMS as usize],
 }
 
 impl Gpu {
     pub fn new() -> Self {
         Self {
             dots: 0,
+            gpu_mode: GpuMode::HBlank,
             vram: [0; VRAM_SIZE as usize],
             oam: [0; OAM_SIZE as usize],
             buffer: [PixelLevel::Zero; SCREEN_WIDTH * SCREEN_HEIGHT],
+            bg_line: [PixelLevel::Zero; TILE_MAP_DIMS as usize * TILE_DIMS as usize],
+            wd_line: [PixelLevel::Zero; TILE_MAP_DIMS as usize * TILE_DIMS as usize],
         }
     }
 
@@ -193,37 +212,90 @@ impl Gpu {
         }
     }
 
-    fn extract_tile_map(
+    fn extract_bg_line(
         &self,
+        curr_ly: u8,
+        scy: u8,
         use_tile_map_2: bool,
-        objects: bool,
         no_use_signed_addressing: bool,
-    ) -> [Tile; TILE_MAP_SIZE as usize] {
+    ) -> [PixelLevel; TILE_MAP_DIMS as usize * TILE_DIMS as usize] {
         let tile_map_offset: usize = if use_tile_map_2 {
             (TILE_MAP_2_BEGIN - VRAM_BEGIN) as usize
         } else {
             (TILE_MAP_1_BEGIN - VRAM_BEGIN) as usize
         };
 
-        let mut tile_map = [Tile::default(); TILE_MAP_SIZE as usize];
+        let mut line: [PixelLevel; TILE_MAP_DIMS as usize * TILE_DIMS as usize] =
+            [PixelLevel::Zero; TILE_MAP_DIMS as usize * TILE_DIMS as usize];
 
-        for i in 0..TILE_MAP_SIZE as usize {
-            let tile_idx = self.vram[tile_map_offset + i];
-            let tile_addr =
-                self.get_tile_addr_adjusted(tile_idx, objects, no_use_signed_addressing);
+        let adjusted_y = curr_ly.wrapping_add(scy);
+        let tile_y = adjusted_y % TILE_DIMS as u8;
+        let tile_idx_y = adjusted_y as usize / TILE_DIMS as usize;
+        let line_offset = tile_map_offset + TILE_MAP_DIMS as usize * tile_idx_y;
+
+        for tile_idx_x in 0..TILE_MAP_DIMS as usize {
+            let tile_idx = self.vram[line_offset + tile_idx_x];
+
+            // TODO: Optimize, get only one line from line instead of entire tile
+            let tile_addr = self.get_tile_addr_adjusted(tile_idx, false, no_use_signed_addressing);
             let tile_bytes = &self.vram[tile_addr as usize..(tile_addr + TILE_SIZE) as usize];
-            tile_map[i] = Tile::from_bytes_8(tile_bytes.try_into().unwrap());
+            let tile = Tile::from_bytes_8(tile_bytes.try_into().unwrap());
+
+            for tile_x in 0..TILE_DIMS as usize {
+                let global_x = tile_idx_x * TILE_DIMS as usize + tile_x;
+                line[global_x] = tile.read_pixel(tile_x, tile_y as usize);
+            }
         }
 
-        tile_map
+        line
     }
 
-    fn translate_pixel_level_bgp(
+    fn extract_wd_line(
         &self,
-        pixel_level: PixelLevel,
-        hw_registers: &HwRegisters,
-    ) -> PixelLevel {
-        let bgp = hw_registers.read_from_register(HwRegister::BGP);
+        curr_ly: u8,
+        wy: u8,
+        use_tile_map_2: bool,
+        no_signed_addressing: bool,
+    ) -> [PixelLevel; TILE_MAP_DIMS as usize * TILE_DIMS as usize] {
+        let tile_map_offset: usize = if use_tile_map_2 {
+            (TILE_MAP_2_BEGIN - VRAM_BEGIN) as usize
+        } else {
+            (TILE_MAP_1_BEGIN - VRAM_BEGIN) as usize
+        };
+
+        let mut line: [PixelLevel; TILE_MAP_DIMS as usize * TILE_DIMS as usize] =
+            [PixelLevel::Zero; TILE_MAP_DIMS as usize * TILE_DIMS as usize];
+
+        let adjusted_y = (curr_ly as i16) - (wy as i16);
+
+        if adjusted_y < 0 {
+            return line;
+        }
+
+        let adjusted_y: u8 = adjusted_y as u8;
+
+        let tile_y = adjusted_y % TILE_DIMS as u8;
+        let tile_idx_y = adjusted_y as usize / TILE_DIMS as usize;
+        let line_offset = tile_map_offset + TILE_MAP_DIMS as usize * tile_idx_y;
+
+        for tile_idx_x in 0..TILE_MAP_DIMS as usize {
+            let tile_idx = self.vram[line_offset + tile_idx_x];
+
+            // TODO: Optimize, get only one line from line instead of entire tile
+            let tile_addr = self.get_tile_addr_adjusted(tile_idx, false, no_signed_addressing);
+            let tile_bytes = &self.vram[tile_addr as usize..(tile_addr + TILE_SIZE) as usize];
+            let tile = Tile::from_bytes_8(tile_bytes.try_into().unwrap());
+
+            for tile_x in 0..TILE_DIMS as usize {
+                let global_x = tile_idx_x * TILE_DIMS as usize + tile_x;
+                line[global_x] = tile.read_pixel(tile_x, tile_y as usize);
+            }
+        }
+
+        line
+    }
+
+    fn translate_pixel_level_bgp(&self, pixel_level: PixelLevel, bgp: u8) -> PixelLevel {
         PixelLevel::from_byte((bgp >> (pixel_level as u8 * 2)) & 0b11)
     }
 
@@ -249,75 +321,35 @@ impl Gpu {
         ))
     }
 
-    fn render_background(
-        &mut self,
-        background_tile_map: &[Tile; TILE_MAP_SIZE as usize],
-        hw_registers: &HwRegisters,
-    ) {
+    fn handle_mode_3(&mut self, curr_y: u8, curr_x: u8, hw_registers: &mut HwRegisters, lcdc: u8) {
+        let bg_enabled = lcdc & (LCDCFlag::BackgroundEnabled as u8) != 0;
+        let wd_enabled = lcdc & (LCDCFlag::WindowEnabled as u8) != 0;
+        let obj_enabled = lcdc & (LCDCFlag::ObjEnabled as u8) != 0;
+
         let scx = hw_registers.read_from_register(HwRegister::SCX);
-        let scy = hw_registers.read_from_register(HwRegister::SCY);
-
-        for y in 0..SCREEN_HEIGHT {
-            for x in 0..SCREEN_WIDTH {
-                let adjusted_x = (x as u8).wrapping_add(scx);
-                let adjusted_y = (y as u8).wrapping_add(scy);
-
-                let tile_idx_x = adjusted_x / (TILE_DIMS as u8);
-                let tile_idx_y = adjusted_y / (TILE_DIMS as u8);
-
-                let tile = background_tile_map
-                    [tile_idx_y as usize * TILE_MAP_DIMS as usize + tile_idx_x as usize];
-
-                let tile_x = adjusted_x % (TILE_DIMS as u8);
-                let tile_y = adjusted_y % (TILE_DIMS as u8);
-
-                let pixel_level = tile.read_pixel(tile_x as usize, tile_y as usize);
-
-                self.buffer[y * SCREEN_WIDTH + x] =
-                    self.translate_pixel_level_bgp(pixel_level, &hw_registers);
-            }
-        }
-    }
-
-    fn render_window(
-        &mut self,
-        window_tile_map: &[Tile; TILE_MAP_SIZE as usize],
-        hw_registers: &HwRegisters,
-    ) {
         let wx = hw_registers.read_from_register(HwRegister::WX);
-        let wy = hw_registers.read_from_register(HwRegister::WY);
 
-        for y in 0..SCREEN_HEIGHT {
-            for x in 0..SCREEN_WIDTH {
-                let window_y: i16 = (y as i16) - (wy as i16);
-                let window_x: i16 = (x as i16) - (wx as i16) + 7;
+        let bg_x = curr_x.wrapping_add(scx);
+        let wd_x = (curr_x as i16) - (wx as i16) + 7;
 
-                if window_y < 0 || window_x < 0 {
-                    continue;
-                }
+        let bg_i = self.bg_line[bg_x as usize];
+        let opt_wd_i = if wd_x >= 0 && wd_x < SCREEN_WIDTH as i16 {
+            Some(self.wd_line[wd_x as usize])
+        } else {
+            None
+        };
 
-                // don't allow reading outside tilemap
-                if window_y >= (TILE_DIMS as i16 * TILE_MAP_DIMS as i16)
-                    || window_x >= (TILE_DIMS as i16 * TILE_MAP_DIMS as i16)
-                {
-                    continue;
-                }
+        let bg_p = self.translate_pixel_level_bgp(bg_i, hw_registers.read_from_register(HwRegister::BGP));
+        let opt_wd_p = opt_wd_i.map(|i| {
+            self.translate_pixel_level_bgp(i, hw_registers.read_from_register(HwRegister::BGP))
+        });
 
-                let tile_idx_x = window_x / (TILE_DIMS as i16);
-                let tile_idx_y = window_y / (TILE_DIMS as i16);
-
-                let tile_x = window_x % (TILE_DIMS as i16);
-                let tile_y = window_y % (TILE_DIMS as i16);
-
-                let tile = window_tile_map
-                    [tile_idx_y as usize * TILE_MAP_DIMS as usize + tile_idx_x as usize];
-
-                let pixel_level = tile.read_pixel(tile_x as usize, tile_y as usize);
-
-                self.buffer[y * SCREEN_WIDTH + x] =
-                    self.translate_pixel_level_bgp(pixel_level, &hw_registers);
-            }
+        let mut out_c = PixelLevel::Zero;
+        if bg_enabled {
+            out_c = if wd_enabled { opt_wd_p.unwrap_or(bg_p) } else { bg_p };
         }
+
+        self.buffer[curr_y as usize * SCREEN_WIDTH + curr_x as usize] = out_c;
     }
 
     pub fn tick(&mut self, hw_registers: &mut HwRegisters) {
@@ -325,51 +357,57 @@ impl Gpu {
 
         if lcdc & (LCDCFlag::GpuEnabled as u8) == 0 {
             self.dots = 0;
+            self.gpu_mode = GpuMode::HBlank;
+            // TODO: Should update ly to zero?
             // TODO: Screen should be blanked out when gpu is off
             return;
         }
 
         let mut ly = hw_registers.read_from_register(HwRegister::LY);
-        
+
         ly = ((self.dots / DOTS_PER_SCANLINE) % NUMBER_SCANLINES) as u8;
         let scanline_dots = self.dots % DOTS_PER_SCANLINE;
-        
+
         // update ly
         hw_registers.write_to_register(HwRegister::LY, ly);
 
         if (ly >= SCREEN_HEIGHT as u8) {
-            // Vblank period
-            if (scanline_dots == 0) {
-                // Trigger vblank interrupt
+            // VBlank (Mode 1)
+            self.gpu_mode = GpuMode::VBlank;
+            if (ly == SCREEN_HEIGHT as u8 && scanline_dots == 0) {
+                hw_registers.request_interrupt(Interrupt::VBlank);
             }
         } else {
-
-            if (scanline_dots < 80) {
+            if (scanline_dots < OAM_SCAN_DOT_LENGTH) {
                 // OAMScan (Mode 2)
-            } else {
+                self.gpu_mode = GpuMode::OamScan;
+                hw_registers.handle_stat_line_mode2_cond();
+            } else if (scanline_dots < OAM_SCAN_DOT_LENGTH + (SCREEN_WIDTH + 12) as u64) {
+                // 12 is min additional time spent fetching tiles and so on
                 // Drawing (Mode 3)
-                let no_use_signed_addressing = lcdc & (LCDCFlag::NoSignedAddressing as u8) != 0;
+                self.gpu_mode = GpuMode::Drawing;
 
-                if lcdc & (LCDCFlag::BackgroundEnabled as u8) != 0 {
-                    let use_tile_map_2_bg = lcdc & (LCDCFlag::UseTileMap2Bg as u8) != 0;
-                    let background_tile_map =
-                        self.extract_tile_map(use_tile_map_2_bg, false, no_use_signed_addressing);
-                    self.render_background(&background_tile_map, &hw_registers);
-                    if lcdc & (LCDCFlag::WindowEnabled as u8) != 0 {
-                        let use_tile_map_2_wd = lcdc & (LCDCFlag::UseTimeMap2Wd as u8) != 0;
-                        let window_tile_map = self.extract_tile_map(
-                            use_tile_map_2_wd,
-                            false,
-                            no_use_signed_addressing,
-                        );
-                        self.render_window(&window_tile_map, &hw_registers);
-                    }
+                if scanline_dots == OAM_SCAN_DOT_LENGTH {
+                    let scy = hw_registers.read_from_register(HwRegister::SCY);
+                    let wy = hw_registers.read_from_register(HwRegister::WY);
+                    let no_signed_addressing = lcdc & (LCDCFlag::NoSignedAddressing as u8) != 0;
+                    let tm2_bg = lcdc & (LCDCFlag::UseTileMap2Bg as u8) != 0;
+                    let tm2_wd = lcdc & (LCDCFlag::UseTimeMap2Wd as u8) != 0;
+                    self.bg_line = self.extract_bg_line(ly, scy, tm2_bg, no_signed_addressing);
+                    self.wd_line = self.extract_wd_line(ly, wy, tm2_wd, no_signed_addressing);
                 }
 
-                if lcdc & (LCDCFlag::ObjEnabled as u8) != 0 {
-                    let object_tile_map =
-                        self.extract_tile_map(false, true, no_use_signed_addressing);
+                let mode_3_dot = (scanline_dots - OAM_SCAN_DOT_LENGTH) as usize;
+
+                if mode_3_dot < SCREEN_WIDTH {
+                    self.handle_mode_3(ly, mode_3_dot as u8, hw_registers, lcdc);
+                } else {
+                    // Do nothing, simulate extra time
                 }
+            } else {
+                // Hblank (Mode 0)
+                self.gpu_mode = GpuMode::HBlank;
+                hw_registers.handle_stat_line_mode0_cond();
             }
         }
 

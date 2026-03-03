@@ -5,6 +5,7 @@ use crate::console::hw_register::HwRegister;
 use crate::console::timer::Timer;
 use std::fs;
 use std::path::Path;
+use crate::console::constants::FRAME_DOT_CYCLES;
 
 pub struct Gameboy {
     cpu: Cpu,
@@ -36,19 +37,17 @@ impl Gameboy {
         let mut cycles_since_last_render = 0;
         let mut dot_cycles_to_run_cpu = 0;
 
-        // Cpu ticks every (X machine cycles (returned by cpu) * 4) loops
-        // Gpu, DMA, timer tick every loop
+        
         while !self.gui.should_close() {
+            // Cpu ticks every 4 dot cycles
             if dot_cycles_to_run_cpu == 0 {
                 dot_cycles_to_run_cpu = (self.cpu.tick(&mut self.bus) as u64) * 4;
             }
 
             self.timer.tick(&mut self.bus);
+            self.bus.tick();
 
-
-            if cycles_since_last_render >= 80400 / 64 {
-                self.bus.write_to_8b(HwRegister::LY as u16, 144);
-                self.bus.tick();
+            if cycles_since_last_render >= FRAME_DOT_CYCLES {
                 self.gui.update(self.bus.get_gpu_buffer()).unwrap();
                 cycles_since_last_render = 0;
             }

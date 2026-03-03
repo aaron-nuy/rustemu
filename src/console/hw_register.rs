@@ -1,6 +1,8 @@
-use num_enum::TryFromPrimitive;
 use crate::console::constants::DMA_MULT;
 use crate::console::dma::DMAData;
+use crate::console::gui::gpu::{GpuMode, STATFlag};
+use crate::console::interrupt::Interrupt;
+use num_enum::TryFromPrimitive;
 
 #[repr(u16)]
 #[derive(Copy, Clone, TryFromPrimitive)]
@@ -106,6 +108,8 @@ pub struct HwRegisters {
     _wy: u8,
     _wx: u8,
     _ie: u8,
+    prev_stat_line: bool,
+    stat_line: bool,
     pub dma_data: DMAData,
 }
 
@@ -153,7 +157,10 @@ impl HwRegisters {
             NR51 => self._nr51 = value,
             NR52 => self._nr52 = value,
             LCDC => self._lcdc = value,
-            STAT => self._stat = value,
+            STAT => {
+                // TODO: Trigger interrupt only on rising edge of stat line?
+                self._stat = value;
+            }
             SCY => self._scy = value,
             SCX => self._scx = value,
             LY => self._ly = value, // TODO: Make it read only for cpu
@@ -161,7 +168,8 @@ impl HwRegisters {
             DMA => {
                 self._dma = value;
                 if (!self.dma_data.running) {
-                    self.dma_data.init_transfer_data(self._dma as u16 * DMA_MULT);
+                    self.dma_data
+                        .init_transfer_data(self._dma as u16 * DMA_MULT);
                 }
             }
             BGP => self._bgp = value,
@@ -177,7 +185,7 @@ impl HwRegisters {
         let hw_register_addr = HwRegister::from_addr(addr);
         self.write_to_register(hw_register_addr, value);
     }
-    
+
     pub fn read_from_register(&self, hw_register: HwRegister) -> u8 {
         use HwRegister::*;
         match hw_register {
@@ -225,7 +233,7 @@ impl HwRegisters {
             IE => self._ie,
         }
     }
-    
+
     pub fn read_from_register_addr(&self, hw_register_addr: u16) -> u8 {
         let hw_register = HwRegister::from_addr(hw_register_addr);
         self.read_from_register(hw_register)
@@ -238,5 +246,73 @@ impl HwRegisters {
     pub fn inc_tima(&mut self) {
         self._tima = self._tima.wrapping_add(1)
     }
+
+    pub fn get_interrupt(&self) -> Option<(Interrupt, u16)> {
+        let _ie = self.read_from_register(HwRegister::IE);
+        let _if = self.read_from_register(HwRegister::IF);
+        let interrupt_mask = _ie & _if;
+
+        Interrupt::get_interrupt(interrupt_mask)
+    }
+
+    pub fn unset_interrupt(&mut self, interrupt: Interrupt) {
+        let mut _if = self.read_from_register(HwRegister::IF);
+
+        _if &= !(interrupt as u8);
+
+        self.write_to_register(HwRegister::IF, _if);
+    }
+
+    pub fn request_interrupt(&mut self, interrupt: Interrupt) {
+        let mut _if = self.read_from_register(HwRegister::IF);
+
+        _if |= interrupt as u8;
+
+        self.write_to_register(HwRegister::IF, _if);
+    }
+
+    pub fn handle_lyc_cond(&mut self) {
+        if self._ly == self._lyc {
+            self._stat |= STATFlag::LYEqLYC as u8;
+
+            if self._stat & (STATFlag::LYCIntSelect as u8) != 0 {
+                self.stat_line |= true;
+            }
+        }
+    }
+
+    pub fn set_stat_gpu_mode(&mut self, gpu_mode: GpuMode) {
+        let mask = STATFlag::PPUMode as u8;
+        let gpu_mode = gpu_mode as u8;
+        self._stat = (self._stat & !mask) | (gpu_mode & mask);
+    }
+
+    pub fn update_stat_line(&mut self) {
+        self.prev_stat_line = self.stat_line;
+        self.stat_line = false;
+    }
+
+    pub fn handle_stat_line(&mut self) {
+        if !self.prev_stat_line && self.stat_line {
+            self.request_interrupt(Interrupt::STAT);
+        }
+    }
+
+    pub fn handle_stat_line_mode0_cond(&mut self) {
+        if self._stat & (STATFlag::Mode0IntSelect as u8) != 0 {
+            self.stat_line |= true;
+        }
+    }
     
+    pub fn handle_stat_line_mode1_cond(&mut self) {
+        if self._stat & (STATFlag::Mode1IntSelect as u8) != 0 {
+            self.stat_line |= true;
+        }
+    }
+    
+    pub fn handle_stat_line_mode2_cond(&mut self) {
+        if self._stat & (STATFlag::Mode2IntSelect as u8) != 0 {
+            self.stat_line |= true;
+        }
+    }
 }
