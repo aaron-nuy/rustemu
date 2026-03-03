@@ -123,7 +123,7 @@ impl HwRegisters {
                 self._sc = value;
 
                 if (value & 0x80) != 0 {
-                    print!("{}", self._sb as char);
+                    //print!("{}", self._sb as char);
                     self._sc &= 0x7F;
                 }
             }
@@ -303,13 +303,13 @@ impl HwRegisters {
             self.stat_line |= true;
         }
     }
-    
+
     pub fn handle_stat_line_mode1_cond(&mut self) {
         if self._stat & (STATFlag::Mode1IntSelect as u8) != 0 {
             self.stat_line |= true;
         }
     }
-    
+
     pub fn handle_stat_line_mode2_cond(&mut self) {
         if self._stat & (STATFlag::Mode2IntSelect as u8) != 0 {
             self.stat_line |= true;

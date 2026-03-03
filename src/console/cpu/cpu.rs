@@ -1137,7 +1137,7 @@ impl Cpu {
         }
 
         let (instruction, size) = self.decode_instruction_at_pc(bus);
-
+        
         self.step(size);
 
         let cycles = self.execute(instruction, bus);

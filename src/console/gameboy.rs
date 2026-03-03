@@ -1,6 +1,6 @@
 use crate::console::bus::Bus;
 use crate::console::cpu::cpu::Cpu;
-use crate::console::gui::gui::Gui;
+use crate::console::gui::gui::{Gui, Palette};
 use crate::console::hw_register::HwRegister;
 use crate::console::timer::Timer;
 use std::fs;
@@ -25,6 +25,17 @@ impl Gameboy {
         }
     }
 
+    pub fn new_with_pal(z: u32, o: u32, t: u32, tr: u32) -> Self {
+        let palette = Palette::new(z, o, t, tr);
+        let m_gui = Gui::new_with_pal(palette);
+        Self {
+            cpu: Cpu::new(),
+            bus: Bus::new(),
+            timer: Timer::new(),
+            gui: m_gui,
+        }
+    }
+
     pub fn load(&mut self, cartridge_path: &str) {
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(cartridge_path);
         let data = fs::read(path).expect("Failed to read file");
@@ -37,7 +48,7 @@ impl Gameboy {
         let mut cycles_since_last_render = 0;
         let mut dot_cycles_to_run_cpu = 0;
 
-        
+
         while !self.gui.should_close() {
             // Cpu ticks every 4 dot cycles
             if dot_cycles_to_run_cpu == 0 {
