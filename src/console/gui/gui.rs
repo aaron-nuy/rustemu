@@ -1,16 +1,7 @@
 use crate::console::constants::SCREEN_HEIGHT;
 use crate::console::constants::SCREEN_WIDTH;
 use crate::console::gui::gpu::PixelLevel;
-use crate::console::gui::input::*;
 use minifb::{Key, Window, WindowOptions};
-
-#[repr(u32)]
-enum DefaultPalette {
-    Zero = 0xE0F8D0,
-    One = 0x88C070,
-    Two = 0x346856,
-    Three = 0x081820,
-}
 
 pub struct Palette {
     zero: u32,
@@ -20,22 +11,21 @@ pub struct Palette {
 }
 
 impl Palette {
-
     pub fn default() -> Self {
         Self {
-            zero : DefaultPalette::Zero as u32,
-            one : DefaultPalette::One as u32,
-            two : DefaultPalette::Two as u32,
-            three : DefaultPalette::Three as u32,
+            zero: 0xE0F8D0,
+            one: 0x88C070,
+            two: 0x346856,
+            three: 0x081820,
         }
     }
 
     pub fn new(z: u32, o: u32, t: u32, tr: u32) -> Self {
         Self {
-            zero : z,
-            one : o,
-            two : t,
-            three : tr,
+            zero: z,
+            one: o,
+            two: t,
+            three: tr,
         }
     }
 
@@ -52,8 +42,7 @@ impl Palette {
 pub struct Gui {
     palette: Palette,
     window: Window,
-    display: [u32; SCREEN_WIDTH * SCREEN_HEIGHT],
-    input: Input,
+    display: [u32; SCREEN_WIDTH * SCREEN_HEIGHT]
 }
 
 impl Gui {
@@ -70,8 +59,7 @@ impl Gui {
         Self {
             palette: Palette::default(),
             window: m_window,
-            display: [0; SCREEN_WIDTH * SCREEN_HEIGHT],
-            input: Input::new(),
+            display: [0; SCREEN_WIDTH * SCREEN_HEIGHT]
         }
     }
 
@@ -88,25 +76,30 @@ impl Gui {
         Self {
             palette: pal,
             window: m_window,
-            display: [0; SCREEN_WIDTH * SCREEN_HEIGHT],
-            input: Input::new(),
+            display: [0; SCREEN_WIDTH * SCREEN_HEIGHT]
         }
     }
 
     pub fn update(
         &mut self,
-        gpu_output: &[PixelLevel; SCREEN_WIDTH * SCREEN_HEIGHT],
-    ) -> minifb::Result<()> {
+        bus: &mut crate::console::bus::Bus,
+    ) {
+        let gpu_buffer = bus.get_gpu_buffer();
+
         for y in 0..SCREEN_HEIGHT {
             for x in 0..SCREEN_WIDTH {
                 let idx: usize = SCREEN_WIDTH * y + x;
 
-                self.display[idx] = self.palette.translate_palette(gpu_output[idx]);
+                self.display[idx] = self.palette.translate_palette(gpu_buffer[idx]);
             }
         }
 
         self.window
-            .update_with_buffer(&self.display, SCREEN_WIDTH, SCREEN_HEIGHT)
+            .update_with_buffer(&self.display, SCREEN_WIDTH, SCREEN_HEIGHT).expect("Something went wrong");
+
+        use crate::console::gui::input;
+        let p1 = bus.p1_as_ref();
+        input::update_input(&mut self.window, p1);
     }
 
     pub fn should_close(&self) -> bool {

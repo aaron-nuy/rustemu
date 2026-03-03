@@ -1,8 +1,8 @@
-use std::ops::Sub;
 use crate::console::bus::Bus;
 use crate::console::constants::*;
 use crate::console::hw_register::{HwRegister, HwRegisters};
 use crate::console::interrupt::Interrupt;
+use std::ops::Sub;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum PixelLevel {
@@ -339,14 +339,19 @@ impl Gpu {
             None
         };
 
-        let bg_p = self.translate_pixel_level_bgp(bg_i, hw_registers.read_from_register(HwRegister::BGP));
+        let bg_p =
+            self.translate_pixel_level_bgp(bg_i, hw_registers.read_from_register(HwRegister::BGP));
         let opt_wd_p = opt_wd_i.map(|i| {
             self.translate_pixel_level_bgp(i, hw_registers.read_from_register(HwRegister::BGP))
         });
 
         let mut out_c = PixelLevel::Zero;
         if bg_enabled {
-            out_c = if wd_enabled { opt_wd_p.unwrap_or(bg_p) } else { bg_p };
+            out_c = if wd_enabled {
+                opt_wd_p.unwrap_or(bg_p)
+            } else {
+                bg_p
+            };
         }
 
         self.buffer[curr_y as usize * SCREEN_WIDTH + curr_x as usize] = out_c;
@@ -374,6 +379,7 @@ impl Gpu {
         if (ly >= SCREEN_HEIGHT as u8) {
             // VBlank (Mode 1)
             self.gpu_mode = GpuMode::VBlank;
+            hw_registers.handle_stat_line_mode1_cond();
             if (ly == SCREEN_HEIGHT as u8 && scanline_dots == 0) {
                 hw_registers.request_interrupt(Interrupt::VBlank);
             }

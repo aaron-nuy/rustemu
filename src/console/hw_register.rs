@@ -108,6 +108,7 @@ pub struct HwRegisters {
     _wy: u8,
     _wx: u8,
     _ie: u8,
+    prev_p1: u8,
     prev_stat_line: bool,
     stat_line: bool,
     pub dma_data: DMAData,
@@ -117,7 +118,11 @@ impl HwRegisters {
     pub fn write_to_register(&mut self, hw_register: HwRegister, value: u8) {
         use HwRegister::*;
         match hw_register {
-            P1 => self._p1 = value,
+            P1 => {
+                use crate::console::gui::input::*;
+
+                self._p1 = (self._p1 & !P1_WRITE_MASK) | (value & P1_WRITE_MASK);
+            },
             SB => self._sb = value,
             SC => {
                 self._sc = value;
@@ -179,6 +184,10 @@ impl HwRegisters {
             WX => self._wx = value,
             IE => self._ie = value,
         }
+    }
+
+    pub fn p1_as_ref(&mut self) -> &mut u8 {
+        &mut self._p1
     }
 
     pub fn write_to_register_addr(&mut self, addr: u16, value: u8) {
@@ -279,6 +288,9 @@ impl HwRegisters {
                 self.stat_line |= true;
             }
         }
+        else {
+            self._stat &= !(STATFlag::LYEqLYC as u8);
+        }
     }
 
     pub fn set_stat_gpu_mode(&mut self, gpu_mode: GpuMode) {
@@ -314,5 +326,17 @@ impl HwRegisters {
         if self._stat & (STATFlag::Mode2IntSelect as u8) != 0 {
             self.stat_line |= true;
         }
+    }
+
+    pub fn handle_p1_interrupt_cond(&mut self) {
+        const LOWER_NIBBLE: u8 = 0x0F;
+        let fell = self.prev_p1 & !self._p1;
+        let should_trigger_int = (fell & LOWER_NIBBLE) != 0;
+
+        if should_trigger_int {
+            self.request_interrupt(Interrupt::Joypad);
+        }
+
+        self.prev_p1 = self._p1;
     }
 }

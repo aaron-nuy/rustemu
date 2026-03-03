@@ -6,6 +6,7 @@ use crate::console::timer::Timer;
 use std::fs;
 use std::path::Path;
 use crate::console::constants::FRAME_DOT_CYCLES;
+use crate::console::gui::input;
 
 pub struct Gameboy {
     cpu: Cpu,
@@ -59,7 +60,7 @@ impl Gameboy {
             self.bus.tick();
 
             if cycles_since_last_render >= FRAME_DOT_CYCLES {
-                self.gui.update(self.bus.get_gpu_buffer()).unwrap();
+                self.gui.update(&mut self.bus);
                 cycles_since_last_render = 0;
             }
 

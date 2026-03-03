@@ -152,6 +152,12 @@ impl Bus {
 
         self.hw_registers.handle_lyc_cond();
 
-        self.hw_registers.handle_stat_line()
+        self.hw_registers.handle_stat_line();
+
+        self.hw_registers.handle_p1_interrupt_cond();
+    }
+
+    pub fn p1_as_ref(&mut self) -> &mut u8 {
+        self.hw_registers.p1_as_ref()
     }
 }
