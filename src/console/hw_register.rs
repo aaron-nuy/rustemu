@@ -1,4 +1,6 @@
 use num_enum::TryFromPrimitive;
+use crate::console::constants::DMA_MULT;
+use crate::console::dma::DMAData;
 
 #[repr(u16)]
 #[derive(Copy, Clone, TryFromPrimitive)]
@@ -62,46 +64,179 @@ impl HwRegister {
 
 #[derive(Default)]
 pub struct HwRegisters {
-    pub _p1: u8,
-    pub _sb: u8,
-    pub _sc: u8,
-    pub _div: u8,
-    pub _tima: u8,
-    pub _tma: u8,
-    pub _tac: u8,
-    pub _if: u8,
-    pub _nr10: u8,
-    pub _nr11: u8,
-    pub _nr12: u8,
-    pub _nr13: u8,
-    pub _nr14: u8,
-    pub _nr21: u8,
-    pub _nr22: u8,
-    pub _nr23: u8,
-    pub _nr24: u8,
-    pub _nr30: u8,
-    pub _nr31: u8,
-    pub _nr32: u8,
-    pub _nr33: u8,
-    pub _nr34: u8,
-    pub _nr41: u8,
-    pub _nr42: u8,
-    pub _nr43: u8,
-    pub _nr44: u8,
-    pub _nr50: u8,
-    pub _nr51: u8,
-    pub _nr52: u8,
-    pub _lcdc: u8,
-    pub _stat: u8,
-    pub _scy: u8,
-    pub _scx: u8,
-    pub _ly: u8,
-    pub _lyc: u8,
-    pub _dma: u8,
-    pub _bgp: u8,
-    pub _obp0: u8,
-    pub _obp1: u8,
-    pub _wy: u8,
-    pub _wx: u8,
-    pub _ie: u8,
+    _p1: u8,
+    _sb: u8,
+    _sc: u8,
+    _div: u8,
+    _tima: u8,
+    _tma: u8,
+    _tac: u8,
+    _if: u8,
+    _nr10: u8,
+    _nr11: u8,
+    _nr12: u8,
+    _nr13: u8,
+    _nr14: u8,
+    _nr21: u8,
+    _nr22: u8,
+    _nr23: u8,
+    _nr24: u8,
+    _nr30: u8,
+    _nr31: u8,
+    _nr32: u8,
+    _nr33: u8,
+    _nr34: u8,
+    _nr41: u8,
+    _nr42: u8,
+    _nr43: u8,
+    _nr44: u8,
+    _nr50: u8,
+    _nr51: u8,
+    _nr52: u8,
+    _lcdc: u8,
+    _stat: u8,
+    _scy: u8,
+    _scx: u8,
+    _ly: u8,
+    _lyc: u8,
+    _dma: u8,
+    _bgp: u8,
+    _obp0: u8,
+    _obp1: u8,
+    _wy: u8,
+    _wx: u8,
+    _ie: u8,
+    pub dma_data: DMAData,
+}
+
+impl HwRegisters {
+    pub fn write_to_register(&mut self, hw_register: HwRegister, value: u8) {
+        use HwRegister::*;
+        match hw_register {
+            P1 => self._p1 = value,
+            SB => self._sb = value,
+            SC => {
+                self._sc = value;
+
+                if (value & 0x80) != 0 {
+                    print!("{}", self._sb as char);
+                    self._sc &= 0x7F;
+                }
+            }
+            DIV => self._div = 0x00,
+            TIMA => self._tima = value,
+            TMA => self._tma = value,
+            TAC => {
+                self.inc_tima();
+                self._tac = value
+            }
+            IF => self._if = value,
+            NR10 => self._nr10 = value,
+            NR11 => self._nr11 = value,
+            NR12 => self._nr12 = value,
+            NR13 => self._nr13 = value,
+            NR14 => self._nr14 = value,
+            NR21 => self._nr21 = value,
+            NR22 => self._nr22 = value,
+            NR23 => self._nr23 = value,
+            NR24 => self._nr24 = value,
+            NR30 => self._nr30 = value,
+            NR31 => self._nr31 = value,
+            NR32 => self._nr32 = value,
+            NR33 => self._nr33 = value,
+            NR34 => self._nr34 = value,
+            NR41 => self._nr41 = value,
+            NR42 => self._nr42 = value,
+            NR43 => self._nr43 = value,
+            NR44 => self._nr44 = value,
+            NR50 => self._nr50 = value,
+            NR51 => self._nr51 = value,
+            NR52 => self._nr52 = value,
+            LCDC => self._lcdc = value,
+            STAT => self._stat = value,
+            SCY => self._scy = value,
+            SCX => self._scx = value,
+            LY => self._ly = value, // TODO: Make it read only for cpu
+            LYC => self._lyc = value,
+            DMA => {
+                self._dma = value;
+                if (!self.dma_data.running) {
+                    self.dma_data.init_transfer_data(self._dma as u16 * DMA_MULT);
+                }
+            }
+            BGP => self._bgp = value,
+            OBP0 => self._obp0 = value,
+            OBP1 => self._obp1 = value,
+            WY => self._wy = value,
+            WX => self._wx = value,
+            IE => self._ie = value,
+        }
+    }
+
+    pub fn write_to_register_addr(&mut self, addr: u16, value: u8) {
+        let hw_register_addr = HwRegister::from_addr(addr);
+        self.write_to_register(hw_register_addr, value);
+    }
+    
+    pub fn read_from_register(&self, hw_register: HwRegister) -> u8 {
+        use HwRegister::*;
+        match hw_register {
+            P1 => self._p1,
+            SB => self._sb,
+            SC => self._sc,
+            DIV => self._div,
+            TIMA => self._tima,
+            TMA => self._tma,
+            TAC => self._tac,
+            IF => self._if,
+            NR10 => self._nr10,
+            NR11 => self._nr11,
+            NR12 => self._nr12,
+            NR13 => self._nr13,
+            NR14 => self._nr14,
+            NR21 => self._nr21,
+            NR22 => self._nr22,
+            NR23 => self._nr23,
+            NR24 => self._nr24,
+            NR30 => self._nr30,
+            NR31 => self._nr31,
+            NR32 => self._nr32,
+            NR33 => self._nr33,
+            NR34 => self._nr34,
+            NR41 => self._nr41,
+            NR42 => self._nr42,
+            NR43 => self._nr43,
+            NR44 => self._nr44,
+            NR50 => self._nr50,
+            NR51 => self._nr51,
+            NR52 => self._nr52,
+            LCDC => self._lcdc,
+            STAT => self._stat,
+            SCY => self._scy,
+            SCX => self._scx,
+            LY => self._ly,
+            LYC => self._lyc,
+            DMA => self._dma,
+            BGP => self._bgp,
+            OBP0 => self._obp0,
+            OBP1 => self._obp1,
+            WY => self._wy,
+            WX => self._wx,
+            IE => self._ie,
+        }
+    }
+    
+    pub fn read_from_register_addr(&self, hw_register_addr: u16) -> u8 {
+        let hw_register = HwRegister::from_addr(hw_register_addr);
+        self.read_from_register(hw_register)
+    }
+
+    pub fn inc_div(&mut self) {
+        self._div = self._div.wrapping_add(1)
+    }
+
+    pub fn inc_tima(&mut self) {
+        self._tima = self._tima.wrapping_add(1)
+    }
+    
 }

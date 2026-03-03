@@ -44,9 +44,11 @@ impl Gameboy {
             }
 
             self.timer.tick(&mut self.bus);
-            self.bus.tick();
+
 
             if cycles_since_last_render >= 80400 / 64 {
+                self.bus.write_to_8b(HwRegister::LY as u16, 144);
+                self.bus.tick();
                 self.gui.update(self.bus.get_gpu_buffer()).unwrap();
                 cycles_since_last_render = 0;
             }

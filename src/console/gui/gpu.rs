@@ -142,8 +142,16 @@ impl OAMEntry {
     }
 }
 
+#[repr(u8)]
+enum GpuMode {
+    HBlank = 0b00,
+    VBlank = 0b01,
+    OamScan = 0b10,
+    Drawing = 0b11,
+}
+
 pub struct Gpu {
-    dot_cycles: u64,
+    dots: u64,
     pub vram: [u8; VRAM_SIZE as usize],
     pub oam: [u8; OAM_SIZE as usize],
     pub buffer: [PixelLevel; SCREEN_WIDTH * SCREEN_HEIGHT],
@@ -152,7 +160,7 @@ pub struct Gpu {
 impl Gpu {
     pub fn new() -> Self {
         Self {
-            dot_cycles: 0,
+            dots: 0,
             vram: [0; VRAM_SIZE as usize],
             oam: [0; OAM_SIZE as usize],
             buffer: [PixelLevel::Zero; SCREEN_WIDTH * SCREEN_HEIGHT],
@@ -215,7 +223,7 @@ impl Gpu {
         pixel_level: PixelLevel,
         hw_registers: &HwRegisters,
     ) -> PixelLevel {
-        let bgp = hw_registers._bgp;
+        let bgp = hw_registers.read_from_register(HwRegister::BGP);
         PixelLevel::from_byte((bgp >> (pixel_level as u8 * 2)) & 0b11)
     }
 
@@ -246,8 +254,8 @@ impl Gpu {
         background_tile_map: &[Tile; TILE_MAP_SIZE as usize],
         hw_registers: &HwRegisters,
     ) {
-        let scx = hw_registers._scx;
-        let scy = hw_registers._scy;
+        let scx = hw_registers.read_from_register(HwRegister::SCX);
+        let scy = hw_registers.read_from_register(HwRegister::SCY);
 
         for y in 0..SCREEN_HEIGHT {
             for x in 0..SCREEN_WIDTH {
@@ -276,8 +284,8 @@ impl Gpu {
         window_tile_map: &[Tile; TILE_MAP_SIZE as usize],
         hw_registers: &HwRegisters,
     ) {
-        let wx = hw_registers._wx;
-        let wy = hw_registers._wy;
+        let wx = hw_registers.read_from_register(HwRegister::WX);
+        let wy = hw_registers.read_from_register(HwRegister::WY);
 
         for y in 0..SCREEN_HEIGHT {
             for x in 0..SCREEN_WIDTH {
@@ -313,45 +321,58 @@ impl Gpu {
     }
 
     pub fn tick(&mut self, hw_registers: &mut HwRegisters) {
-        let lcdc = hw_registers._lcdc;
+        let lcdc = hw_registers.read_from_register(HwRegister::LCDC);
 
         if lcdc & (LCDCFlag::GpuEnabled as u8) == 0 {
-            self.dot_cycles = 0;
-            // gpu is disabled anyway, who cares about performance
-            for y in 0..SCREEN_HEIGHT {
-                for x in 0..SCREEN_WIDTH {
-                    self.buffer[y * SCREEN_WIDTH + x] = PixelLevel::Zero;
-                }
-            }
+            self.dots = 0;
+            // TODO: Screen should be blanked out when gpu is off
             return;
         }
 
-        hw_registers._ly = ((self.dot_cycles / DOTS_PER_SCANLINE) % NUMBER_SCANLINES) as u8;
+        let mut ly = hw_registers.read_from_register(HwRegister::LY);
+        
+        ly = ((self.dots / DOTS_PER_SCANLINE) % NUMBER_SCANLINES) as u8;
+        let scanline_dots = self.dots % DOTS_PER_SCANLINE;
+        
+        // update ly
+        hw_registers.write_to_register(HwRegister::LY, ly);
 
-        if (hw_registers._ly < SCREEN_HEIGHT as u8) {
-            let no_use_signed_addressing = lcdc & (LCDCFlag::NoSignedAddressing as u8) != 0;
+        if (ly >= SCREEN_HEIGHT as u8) {
+            // Vblank period
+            if (scanline_dots == 0) {
+                // Trigger vblank interrupt
+            }
+        } else {
 
-            if lcdc & (LCDCFlag::BackgroundEnabled as u8) != 0 {
-                let use_tile_map_2_bg = lcdc & (LCDCFlag::UseTileMap2Bg as u8) != 0;
-                let background_tile_map =
-                    self.extract_tile_map(use_tile_map_2_bg, false, no_use_signed_addressing);
-                self.render_background(&background_tile_map, &hw_registers);
-                if lcdc & (LCDCFlag::WindowEnabled as u8) != 0 {
-                    let use_tile_map_2_wd = lcdc & (LCDCFlag::UseTimeMap2Wd as u8) != 0;
-                    let window_tile_map =
-                        self.extract_tile_map(use_tile_map_2_wd, false, no_use_signed_addressing);
-                    self.render_window(&window_tile_map, &hw_registers);
+            if (scanline_dots < 80) {
+                // OAMScan (Mode 2)
+            } else {
+                // Drawing (Mode 3)
+                let no_use_signed_addressing = lcdc & (LCDCFlag::NoSignedAddressing as u8) != 0;
+
+                if lcdc & (LCDCFlag::BackgroundEnabled as u8) != 0 {
+                    let use_tile_map_2_bg = lcdc & (LCDCFlag::UseTileMap2Bg as u8) != 0;
+                    let background_tile_map =
+                        self.extract_tile_map(use_tile_map_2_bg, false, no_use_signed_addressing);
+                    self.render_background(&background_tile_map, &hw_registers);
+                    if lcdc & (LCDCFlag::WindowEnabled as u8) != 0 {
+                        let use_tile_map_2_wd = lcdc & (LCDCFlag::UseTimeMap2Wd as u8) != 0;
+                        let window_tile_map = self.extract_tile_map(
+                            use_tile_map_2_wd,
+                            false,
+                            no_use_signed_addressing,
+                        );
+                        self.render_window(&window_tile_map, &hw_registers);
+                    }
+                }
+
+                if lcdc & (LCDCFlag::ObjEnabled as u8) != 0 {
+                    let object_tile_map =
+                        self.extract_tile_map(false, true, no_use_signed_addressing);
                 }
             }
-
-            if lcdc & (LCDCFlag::ObjEnabled as u8) != 0 {
-                let object_tile_map = self.extract_tile_map(false, true, no_use_signed_addressing);
-            }
-        }
-        else {
-            print!("ly")
         }
 
-        self.dot_cycles += 1;
+        self.dots += 1;
     }
 }
