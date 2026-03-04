@@ -2,8 +2,8 @@ use crate::console::bus::Bus;
 use crate::console::constants::*;
 use crate::console::hw_register::{HwRegister, HwRegisters};
 use crate::console::interrupt::Interrupt;
-use std::ops::Sub;
 
+#[repr(u8)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum PixelLevel {
     Zero = 0b00,
@@ -13,24 +13,21 @@ pub enum PixelLevel {
 }
 
 impl PixelLevel {
-    pub fn from_byte(shade: u8) -> PixelLevel {
-        assert!(shade <= 0b11);
-        match (shade) {
-            0 => PixelLevel::Zero,
-            1 => PixelLevel::One,
-            2 => PixelLevel::Two,
-            3 => PixelLevel::Three,
-            _ => unreachable!(),
+    #[inline(always)]
+    pub fn decode_line(encoded_line: &[u8; 2], out: &mut [PixelLevel; TILE_DIMS as usize]) {
+        for x in 0..TILE_DIMS as usize {
+            let shift = 7 - x;
+            let msb = (encoded_line[0] >> shift) & 0b1;
+            let lsb = (encoded_line[1] >> shift) & 0b1;
+            out[x] = PixelLevel::from((msb << 1) | lsb);
         }
     }
+}
 
-    pub fn to_int(&self) -> u8 {
-        match (self) {
-            PixelLevel::Zero => 255,
-            PixelLevel::One => 170,
-            PixelLevel::Two => 85,
-            PixelLevel::Three => 0,
-        }
+impl From<u8> for PixelLevel {
+    fn from(value: u8) -> Self {
+        debug_assert!(value <= 0b11);
+        unsafe { std::mem::transmute(value) }
     }
 }
 
@@ -52,24 +49,6 @@ impl Tile {
         });
 
         Self { data }
-    }
-
-    pub fn read_pixel(&self, x: usize, y: usize) -> PixelLevel {
-        assert!(x < 8);
-        assert!(y < 8);
-
-        let line = self.data[y];
-
-        let first_half: u8 = (line & 0xFF) as u8;
-        let second_half: u8 = ((line >> 8) & 0xFF) as u8;
-
-        // the most significant bit represents the leftmost pixel, so we reverse bit order
-        let shift = 7 - x;
-
-        let msb = (first_half >> shift) & 0b1;
-        let lsb = (second_half >> shift) & 0b1;
-
-        PixelLevel::from_byte((msb << 1) | lsb)
     }
 }
 
@@ -194,21 +173,14 @@ impl Gpu {
         self.vram[addr as usize]
     }
 
-    fn get_tile_addr_adjusted(
-        &self,
-        index: u8,
-        objects: bool,
-        no_use_signed_addressing: bool,
-    ) -> u16 {
+    fn get_tile_addr_adjusted_offset(&self, objects: bool, no_use_signed_addressing: bool) -> u16 {
         let signed = !objects && !no_use_signed_addressing;
 
         if !signed {
-            const OFFSET: u16 = TILE_BLOCK_0 - VRAM_BEGIN;
-            OFFSET + (index as u16) * TILE_SIZE
+            TILE_BLOCK_0 - VRAM_BEGIN
         } else {
             const SIGNED_IDX_OFFSET: u8 = 128;
-            const OFFSET: u16 = TILE_BLOCK_1 - VRAM_BEGIN;
-            OFFSET + (index.wrapping_add(SIGNED_IDX_OFFSET) as u16) * TILE_SIZE
+            (TILE_BLOCK_1 - VRAM_BEGIN).wrapping_sub(SIGNED_IDX_OFFSET as u16 * TILE_SIZE)
         }
     }
 
@@ -217,7 +189,7 @@ impl Gpu {
         curr_ly: u8,
         scy: u8,
         use_tile_map_2: bool,
-        no_use_signed_addressing: bool,
+        no_signed_addressing: bool,
     ) -> [PixelLevel; TILE_MAP_DIMS as usize * TILE_DIMS as usize] {
         let tile_map_offset: usize = if use_tile_map_2 {
             (TILE_MAP_2_BEGIN - VRAM_BEGIN) as usize
@@ -233,18 +205,22 @@ impl Gpu {
         let tile_idx_y = adjusted_y as usize / TILE_DIMS as usize;
         let line_offset = tile_map_offset + TILE_MAP_DIMS as usize * tile_idx_y;
 
+        let offset = self.get_tile_addr_adjusted_offset(false, no_signed_addressing);
+
         for tile_idx_x in 0..TILE_MAP_DIMS as usize {
             let tile_idx = self.vram[line_offset + tile_idx_x];
 
-            // TODO: Optimize, get only one line from line instead of entire tile
-            let tile_addr = self.get_tile_addr_adjusted(tile_idx, false, no_use_signed_addressing);
-            let tile_bytes = &self.vram[tile_addr as usize..(tile_addr + TILE_SIZE) as usize];
-            let tile = Tile::from_bytes_8(tile_bytes.try_into().unwrap());
+            let base = (offset as usize + tile_idx as usize * TILE_SIZE as usize)
+                + TILE_LINE_BYTE_SIZE * tile_y as usize;
+            let start = tile_idx_x * TILE_DIMS as usize;
 
-            for tile_x in 0..TILE_DIMS as usize {
-                let global_x = tile_idx_x * TILE_DIMS as usize + tile_x;
-                line[global_x] = tile.read_pixel(tile_x, tile_y as usize);
-            }
+            let line_bytes: &[u8; 2] = self.vram[base..base + 2].try_into().unwrap();
+            let out: &mut [PixelLevel; TILE_DIMS as usize] = (&mut line
+                [start..start + TILE_DIMS as usize])
+                .try_into()
+                .unwrap();
+
+            PixelLevel::decode_line(line_bytes, out);
         }
 
         line
@@ -278,25 +254,29 @@ impl Gpu {
         let tile_idx_y = adjusted_y as usize / TILE_DIMS as usize;
         let line_offset = tile_map_offset + TILE_MAP_DIMS as usize * tile_idx_y;
 
+        let offset = self.get_tile_addr_adjusted_offset(false, no_signed_addressing);
+
         for tile_idx_x in 0..TILE_MAP_DIMS as usize {
             let tile_idx = self.vram[line_offset + tile_idx_x];
 
-            // TODO: Optimize, get only one line from line instead of entire tile
-            let tile_addr = self.get_tile_addr_adjusted(tile_idx, false, no_signed_addressing);
-            let tile_bytes = &self.vram[tile_addr as usize..(tile_addr + TILE_SIZE) as usize];
-            let tile = Tile::from_bytes_8(tile_bytes.try_into().unwrap());
+            let base = (offset as usize + tile_idx as usize * TILE_SIZE as usize)
+                + TILE_LINE_BYTE_SIZE * tile_y as usize;
+            let start = tile_idx_x * TILE_DIMS as usize;
 
-            for tile_x in 0..TILE_DIMS as usize {
-                let global_x = tile_idx_x * TILE_DIMS as usize + tile_x;
-                line[global_x] = tile.read_pixel(tile_x, tile_y as usize);
-            }
+            let line_bytes: &[u8; 2] = self.vram[base..base + 2].try_into().unwrap();
+            let out: &mut [PixelLevel; TILE_DIMS as usize] = (&mut line
+                [start..start + TILE_DIMS as usize])
+                .try_into()
+                .unwrap();
+
+            PixelLevel::decode_line(line_bytes, out);
         }
 
         line
     }
 
     fn translate_pixel_level_bgp(&self, pixel_level: PixelLevel, bgp: u8) -> PixelLevel {
-        PixelLevel::from_byte((bgp >> (pixel_level as u8 * 2)) & 0b11)
+        PixelLevel::from((bgp >> (pixel_level as u8 * 2)) & 0b11)
     }
 
     fn translate_pixel_level_other(
@@ -316,7 +296,7 @@ impl Gpu {
             HwRegister::OBP0 as u16
         };
         let register = bus.read_from_8b(register_addr);
-        Some(PixelLevel::from_byte(
+        Some(PixelLevel::from(
             (register >> (pixel_level as u8 * 2)) & 0b11,
         ))
     }

@@ -17,6 +17,7 @@ pub const VRAM_BEGIN: u16 = 0x8000;
 pub const VRAM_END: u16 = 0x9FFF;
 pub const VRAM_SIZE: u16 = VRAM_END - VRAM_BEGIN + 1;
 pub const TILE_SIZE: u16 = 0x10;
+pub const TILE_LINE_BYTE_SIZE: usize = 2;
 pub const TILE_BLOCK_0: u16 = 0x8000;
 pub const TILE_BLOCK_1: u16 = 0x8800;
 pub const TILE_BLOCK_2: u16 = 0x9000;
