@@ -1,7 +1,7 @@
 use crate::console::audio::Audio;
 use crate::console::cartridge::Cartridge;
 use crate::console::constants::*;
-use crate::console::gui::gpu::{Gpu, PixelLevel, STATFlag};
+use crate::console::gui::gpu::{Gpu, PixelLevel};
 use crate::console::hw_register::HwRegister;
 use crate::console::hw_register::HwRegisters;
 use crate::console::interrupt::Interrupt;
@@ -22,11 +22,11 @@ impl Bus {
             addr if addr == BOOT_ROM_DISABLE_ADDR => {
                 self.boot_rom_enabled = false;
             }
-            addr if HwRegister::supported_addr(addr) => {
-                self.hw_registers.write_to_register_addr(addr, value)
-            }
             VRAM_BEGIN..=VRAM_END => {
                 self.gpu.write_to_vram(addr - VRAM_BEGIN, value);
+            }
+            addr if HwRegister::supported_addr(addr) => {
+                self.hw_registers.write_to_register_addr(addr, value)
             }
             _ => self.ram[addr as usize] = value,
         }
@@ -37,10 +37,10 @@ impl Bus {
             addr if self.boot_rom_enabled && addr < BOOT_ROM_SIZE as u16 => {
                 self.boot_rom[addr as usize]
             }
+            VRAM_BEGIN..=VRAM_END => self.gpu.read_from_vram(addr - VRAM_BEGIN),
             addr if HwRegister::supported_addr(addr) => {
                 self.hw_registers.read_from_register_addr(addr)
             }
-            VRAM_BEGIN..=VRAM_END => self.gpu.read_from_vram(addr - VRAM_BEGIN),
             _ => self.ram[addr as usize],
         }
     }
@@ -153,10 +153,10 @@ impl Bus {
         self.hw_registers.handle_lyc_cond();
 
         self.hw_registers.handle_stat_line();
-
     }
 
     pub fn update_input_state(&mut self, dpad_state: u8, button_state: u8) {
-        self.hw_registers.update_input_state(dpad_state, button_state);
+        self.hw_registers
+            .update_input_state(dpad_state, button_state);
     }
 }

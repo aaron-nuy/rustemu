@@ -47,7 +47,6 @@ impl Gameboy {
         let mut cycles_since_last_render = 0;
         let mut dot_cycles_to_run_cpu = 0;
 
-
         while !self.gui.should_close() {
             // Cpu ticks every 4 dot cycles
             if dot_cycles_to_run_cpu == 0 {

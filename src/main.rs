@@ -1,6 +1,6 @@
 use console::gameboy::Gameboy;
-use lexopt::Parser;
 use lexopt::prelude::*;
+use lexopt::Parser;
 use std::process;
 
 mod console;

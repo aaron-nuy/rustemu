@@ -28,11 +28,9 @@ pub const TILE_MAP_1_BEGIN: u16 = 0x9800;
 pub const TILE_MAP_2_BEGIN: u16 = 0x9C00;
 pub const TILE_MAP_SIZE: u16 = TILE_MAP_DIMS * TILE_MAP_DIMS;
 
-
 pub const SCREEN_WIDTH: usize = 160;
 pub const SCREEN_HEIGHT: usize = 144;
 pub const BUFFER_SIZE: usize = SCREEN_WIDTH * SCREEN_HEIGHT;
-
 
 pub const BOOT_ROM_DISABLE_ADDR: u16 = 0xFF50;
 pub const BOOT_ROM_SIZE: usize = 0x100;

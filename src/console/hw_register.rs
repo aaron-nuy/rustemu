@@ -118,7 +118,6 @@ pub struct HwRegisters {
 }
 
 impl HwRegisters {
-    
     pub fn write_to_register(&mut self, hw_register: HwRegister, value: u8) {
         use HwRegister::*;
         match hw_register {
@@ -126,7 +125,7 @@ impl HwRegisters {
                 use crate::console::gui::input::*;
 
                 self._p1 = (self._p1 & !P1_WRITE_MASK) | (value & P1_WRITE_MASK);
-            },
+            }
             SB => self._sb = value,
             SC => {
                 self._sc = value;
@@ -209,7 +208,7 @@ impl HwRegisters {
                 }
 
                 (self._p1 & 0xF0) | low_nibble
-            },
+            }
             SB => self._sb,
             SC => self._sc,
             DIV => self._div,
@@ -298,8 +297,7 @@ impl HwRegisters {
             if self._stat & (STATFlag::LYCIntSelect as u8) != 0 {
                 self.stat_line |= true;
             }
-        }
-        else {
+        } else {
             self._stat &= !(STATFlag::LYEqLYC as u8);
         }
     }
@@ -351,7 +349,5 @@ impl HwRegisters {
         if (dpad_fell | button_fell) & 0x0F != 0 {
             self.request_interrupt(Interrupt::Joypad);
         }
-
     }
-
 }

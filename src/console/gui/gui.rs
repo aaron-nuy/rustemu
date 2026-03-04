@@ -1,8 +1,8 @@
 use crate::console::constants::SCREEN_HEIGHT;
 use crate::console::constants::SCREEN_WIDTH;
 use crate::console::gui::gpu::PixelLevel;
-use minifb::{Key, Window, WindowOptions};
 use crate::console::gui::input::compute_input_states;
+use minifb::{Window, WindowOptions};
 
 pub struct Palette {
     zero: u32,
@@ -43,7 +43,7 @@ impl Palette {
 pub struct Gui {
     palette: Palette,
     window: Window,
-    display: [u32; SCREEN_WIDTH * SCREEN_HEIGHT]
+    display: [u32; SCREEN_WIDTH * SCREEN_HEIGHT],
 }
 
 impl Gui {
@@ -60,7 +60,7 @@ impl Gui {
         Self {
             palette: Palette::default(),
             window: m_window,
-            display: [0; SCREEN_WIDTH * SCREEN_HEIGHT]
+            display: [0; SCREEN_WIDTH * SCREEN_HEIGHT],
         }
     }
 
@@ -77,14 +77,11 @@ impl Gui {
         Self {
             palette: pal,
             window: m_window,
-            display: [0; SCREEN_WIDTH * SCREEN_HEIGHT]
+            display: [0; SCREEN_WIDTH * SCREEN_HEIGHT],
         }
     }
 
-    pub fn update(
-        &mut self,
-        bus: &mut crate::console::bus::Bus,
-    ) {
+    pub fn update(&mut self, bus: &mut crate::console::bus::Bus) {
         let gpu_buffer = bus.get_gpu_buffer();
 
         for y in 0..SCREEN_HEIGHT {
@@ -94,7 +91,8 @@ impl Gui {
             }
         }
         self.window
-            .update_with_buffer(&self.display, SCREEN_WIDTH, SCREEN_HEIGHT).expect("Something went wrong");
+            .update_with_buffer(&self.display, SCREEN_WIDTH, SCREEN_HEIGHT)
+            .expect("Something went wrong");
 
         let (dpad, buttons) = compute_input_states(&self.window);
         bus.update_input_state(dpad, buttons);

@@ -1,5 +1,3 @@
-use crate::console::bus::Bus;
-
 #[derive(Default)]
 pub struct DMAData {
     pub running: bool,
