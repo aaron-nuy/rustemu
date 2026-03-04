@@ -1,8 +1,12 @@
-use crate::console::constants::DMA_MULT;
+use crate::console::constants::{DMA_MULT, REG_COUNT};
 use crate::console::dma::DMAData;
 use crate::console::gui::gpu::{GpuMode, STATFlag};
+use crate::console::hw_register::HwRegister::{DIV, IE, IF, LY, LYC, P1, STAT, TIMA};
 use crate::console::interrupt::Interrupt;
 use num_enum::TryFromPrimitive;
+
+const INNER_REG_ARR_SIZE: usize = 0x100;
+const INNER_REG_IDX_FLAG: usize = 0x00FF;
 
 #[repr(u16)]
 #[derive(Copy, Clone, TryFromPrimitive)]
@@ -52,62 +56,29 @@ pub enum HwRegister {
 }
 
 impl HwRegister {
+    #[inline]
     pub fn from_addr(addr: u16) -> HwRegister {
-        HwRegister::try_from(addr).unwrap()
+        debug_assert!(HwRegister::supported_addr(addr));
+        unsafe { std::mem::transmute(addr) }
     }
 
+    #[inline]
     pub fn supported_addr(addr: u16) -> bool {
-        match HwRegister::try_from(addr) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        matches!(addr,
+        0xff00..=0xff02 | 0xff04..=0xff07 | 0xff0f |
+        0xff10..=0xff14 | 0xff16..=0xff19 | 0xff1a..=0xff1e |
+        0xff20..=0xff26 | 0xff40..=0xff4b | 0xffff)
+    }
+
+    #[inline]
+    fn to_index(self) -> usize {
+        (self as usize) & INNER_REG_IDX_FLAG
     }
 }
 
-#[derive(Default)]
 pub struct HwRegisters {
-    _p1: u8,
-    _sb: u8,
-    _sc: u8,
-    _div: u8,
-    _tima: u8,
-    _tma: u8,
-    _tac: u8,
-    _if: u8,
-    _nr10: u8,
-    _nr11: u8,
-    _nr12: u8,
-    _nr13: u8,
-    _nr14: u8,
-    _nr21: u8,
-    _nr22: u8,
-    _nr23: u8,
-    _nr24: u8,
-    _nr30: u8,
-    _nr31: u8,
-    _nr32: u8,
-    _nr33: u8,
-    _nr34: u8,
-    _nr41: u8,
-    _nr42: u8,
-    _nr43: u8,
-    _nr44: u8,
-    _nr50: u8,
-    _nr51: u8,
-    _nr52: u8,
-    _lcdc: u8,
-    _stat: u8,
-    _scy: u8,
-    _scx: u8,
-    _ly: u8,
-    _lyc: u8,
-    _dma: u8,
-    _bgp: u8,
-    _obp0: u8,
-    _obp1: u8,
-    _wy: u8,
-    _wx: u8,
-    _ie: u8,
+    regs: [u8; INNER_REG_ARR_SIZE],
+
     prev_stat_line: bool,
     stat_line: bool,
     pub dma_data: DMAData,
@@ -117,236 +88,195 @@ pub struct HwRegisters {
     prev_button_state: u8,
 }
 
+impl Default for HwRegisters {
+    fn default() -> Self {
+        Self {
+            regs: [0u8; INNER_REG_ARR_SIZE],
+            prev_stat_line: false,
+            stat_line: false,
+            dma_data: DMAData::default(),
+            dpad_state: 0,
+            button_state: 0,
+            prev_dpad_state: 0,
+            prev_button_state: 0,
+        }
+    }
+}
+
 impl HwRegisters {
+    #[inline]
+    fn reg_as_ref(&self, reg: HwRegister) -> &u8 {
+        &self.regs[reg.to_index()]
+    }
+
+    #[inline]
+    fn reg_as_mut_ref(&mut self, reg: HwRegister) -> &mut u8 {
+        &mut self.regs[reg.to_index()]
+    }
+
+    #[inline]
+    fn raw_read(&self, hw_register: HwRegister) -> u8 {
+        unsafe { *self.regs.get_unchecked(hw_register.to_index()) }
+    }
+
+    // Same for raw_write
+    #[inline]
+    fn raw_write(&mut self, hw_register: HwRegister, value: u8) {
+        unsafe { *self.regs.get_unchecked_mut(hw_register.to_index()) = value; }
+    }
+
     pub fn write_to_register(&mut self, hw_register: HwRegister, value: u8) {
         use HwRegister::*;
         match hw_register {
             P1 => {
                 use crate::console::gui::input::*;
-
-                self._p1 = (self._p1 & !P1_WRITE_MASK) | (value & P1_WRITE_MASK);
+                let p1 = self.reg_as_mut_ref(P1);
+                *p1 = (*p1 & !P1_WRITE_MASK) | (value & P1_WRITE_MASK);
             }
-            SB => self._sb = value,
             SC => {
-                self._sc = value;
-
-                if (value & 0x80) != 0 {
-                    //print!("{}", self._sb as char);
-                    self._sc &= 0x7F;
-                }
+                let sc = if (value & 0x80) != 0 {
+                    value & 0x7F
+                } else {
+                    value
+                };
+                self.raw_write(SC, sc);
             }
-            DIV => self._div = 0x00,
-            TIMA => self._tima = value,
-            TMA => self._tma = value,
+            DIV => self.raw_write(DIV, 0x00),
             TAC => {
                 self.inc_tima();
-                self._tac = value
+                self.raw_write(TAC, value);
             }
-            IF => self._if = value,
-            NR10 => self._nr10 = value,
-            NR11 => self._nr11 = value,
-            NR12 => self._nr12 = value,
-            NR13 => self._nr13 = value,
-            NR14 => self._nr14 = value,
-            NR21 => self._nr21 = value,
-            NR22 => self._nr22 = value,
-            NR23 => self._nr23 = value,
-            NR24 => self._nr24 = value,
-            NR30 => self._nr30 = value,
-            NR31 => self._nr31 = value,
-            NR32 => self._nr32 = value,
-            NR33 => self._nr33 = value,
-            NR34 => self._nr34 = value,
-            NR41 => self._nr41 = value,
-            NR42 => self._nr42 = value,
-            NR43 => self._nr43 = value,
-            NR44 => self._nr44 = value,
-            NR50 => self._nr50 = value,
-            NR51 => self._nr51 = value,
-            NR52 => self._nr52 = value,
-            LCDC => self._lcdc = value,
-            STAT => {
-                // TODO: Trigger interrupt only on rising edge of stat line?
-                self._stat = value;
-            }
-            SCY => self._scy = value,
-            SCX => self._scx = value,
-            LY => self._ly = value, // TODO: Make it read only for cpu
-            LYC => self._lyc = value,
             DMA => {
-                self._dma = value;
-                if (!self.dma_data.running) {
-                    self.dma_data
-                        .init_transfer_data(self._dma as u16 * DMA_MULT);
+                self.raw_write(DMA, value);
+                if !self.dma_data.running {
+                    self.dma_data.init_transfer_data(value as u16 * DMA_MULT);
                 }
             }
-            BGP => self._bgp = value,
-            OBP0 => self._obp0 = value,
-            OBP1 => self._obp1 = value,
-            WY => self._wy = value,
-            WX => self._wx = value,
-            IE => self._ie = value,
+            _ => self.raw_write(hw_register, value),
         }
     }
 
+    #[inline]
     pub fn write_to_register_addr(&mut self, addr: u16, value: u8) {
-        let hw_register_addr = HwRegister::from_addr(addr);
-        self.write_to_register(hw_register_addr, value);
+        self.write_to_register(HwRegister::from_addr(addr), value);
     }
 
     pub fn read_from_register(&self, hw_register: HwRegister) -> u8 {
-        use HwRegister::*;
         match hw_register {
             P1 => {
                 use crate::console::gui::input::*;
+                let p1 = self.raw_read(P1);
                 let mut low_nibble = 0x0F;
-                if self._p1 & (P1Flags::DPAD as u8) == 0 {
+                if p1 & (P1Flags::DPAD as u8) == 0 {
                     low_nibble &= self.dpad_state;
                 }
-                if self._p1 & (P1Flags::BUTTONS as u8) == 0 {
+                if p1 & (P1Flags::BUTTONS as u8) == 0 {
                     low_nibble &= self.button_state;
                 }
-
-                (self._p1 & 0xF0) | low_nibble
+                (p1 & 0xF0) | low_nibble
             }
-            SB => self._sb,
-            SC => self._sc,
-            DIV => self._div,
-            TIMA => self._tima,
-            TMA => self._tma,
-            TAC => self._tac,
-            IF => self._if,
-            NR10 => self._nr10,
-            NR11 => self._nr11,
-            NR12 => self._nr12,
-            NR13 => self._nr13,
-            NR14 => self._nr14,
-            NR21 => self._nr21,
-            NR22 => self._nr22,
-            NR23 => self._nr23,
-            NR24 => self._nr24,
-            NR30 => self._nr30,
-            NR31 => self._nr31,
-            NR32 => self._nr32,
-            NR33 => self._nr33,
-            NR34 => self._nr34,
-            NR41 => self._nr41,
-            NR42 => self._nr42,
-            NR43 => self._nr43,
-            NR44 => self._nr44,
-            NR50 => self._nr50,
-            NR51 => self._nr51,
-            NR52 => self._nr52,
-            LCDC => self._lcdc,
-            STAT => self._stat,
-            SCY => self._scy,
-            SCX => self._scx,
-            LY => self._ly,
-            LYC => self._lyc,
-            DMA => self._dma,
-            BGP => self._bgp,
-            OBP0 => self._obp0,
-            OBP1 => self._obp1,
-            WY => self._wy,
-            WX => self._wx,
-            IE => self._ie,
+            _ => self.raw_read(hw_register),
         }
     }
 
-    pub fn read_from_register_addr(&self, hw_register_addr: u16) -> u8 {
-        let hw_register = HwRegister::from_addr(hw_register_addr);
-        self.read_from_register(hw_register)
+    #[inline]
+    pub fn read_from_register_addr(&self, addr: u16) -> u8 {
+        self.read_from_register(HwRegister::from_addr(addr))
     }
 
+    #[inline]
     pub fn inc_div(&mut self) {
-        self._div = self._div.wrapping_add(1)
+        let div_ref = self.reg_as_mut_ref(DIV);
+        *div_ref = div_ref.wrapping_add(1);
     }
 
+    #[inline]
     pub fn inc_tima(&mut self) {
-        self._tima = self._tima.wrapping_add(1)
+        let tima_ref = self.reg_as_mut_ref(TIMA);
+        *tima_ref = tima_ref.wrapping_add(1);
     }
 
+    #[inline]
     pub fn get_interrupt(&self) -> Option<(Interrupt, u16)> {
-        let _ie = self.read_from_register(HwRegister::IE);
-        let _if = self.read_from_register(HwRegister::IF);
-        let interrupt_mask = _ie & _if;
-
-        Interrupt::get_interrupt(interrupt_mask)
+        Interrupt::get_interrupt(self.raw_read(IE) & self.raw_read(IF))
     }
 
+    #[inline]
     pub fn unset_interrupt(&mut self, interrupt: Interrupt) {
-        let mut _if = self.read_from_register(HwRegister::IF);
-
-        _if &= !(interrupt as u8);
-
-        self.write_to_register(HwRegister::IF, _if);
+        *self.reg_as_mut_ref(IF) &= !(interrupt as u8);
     }
 
+    #[inline]
     pub fn request_interrupt(&mut self, interrupt: Interrupt) {
-        let mut _if = self.read_from_register(HwRegister::IF);
-
-        _if |= interrupt as u8;
-
-        self.write_to_register(HwRegister::IF, _if);
+        *self.reg_as_mut_ref(IF) |= interrupt as u8;
     }
 
     pub fn handle_lyc_cond(&mut self) {
-        if self._ly == self._lyc {
-            self._stat |= STATFlag::LYEqLYC as u8;
-
-            if self._stat & (STATFlag::LYCIntSelect as u8) != 0 {
-                self.stat_line |= true;
+        if self.raw_read(LY) == self.raw_read(LYC) {
+            let stat_ref = self.reg_as_mut_ref(STAT);
+            *stat_ref |= STATFlag::LYEqLYC as u8;
+            if *stat_ref & (STATFlag::LYCIntSelect as u8) != 0 {
+                self.stat_line = true;
             }
         } else {
-            self._stat &= !(STATFlag::LYEqLYC as u8);
+            let stat_ref = self.reg_as_mut_ref(STAT);
+            *stat_ref &= !(STATFlag::LYEqLYC as u8);
         }
     }
 
+    #[inline]
     pub fn set_stat_gpu_mode(&mut self, gpu_mode: GpuMode) {
         let mask = STATFlag::PPUMode as u8;
-        let gpu_mode = gpu_mode as u8;
-        self._stat = (self._stat & !mask) | (gpu_mode & mask);
+        let stat_ref = self.reg_as_mut_ref(STAT);
+        *stat_ref = (*stat_ref & !mask) | (gpu_mode as u8);
     }
 
+    #[inline]
     pub fn update_stat_line(&mut self) {
         self.prev_stat_line = self.stat_line;
         self.stat_line = false;
     }
 
+    #[inline]
     pub fn handle_stat_line(&mut self) {
         if !self.prev_stat_line && self.stat_line {
             self.request_interrupt(Interrupt::STAT);
         }
     }
 
+    #[inline]
+    pub fn handle_stat_line_mode_cond(&mut self, flag: STATFlag) {
+        if self.raw_read(STAT) & (flag as u8) != 0 {
+            self.stat_line = true;
+        }
+    }
+
+    #[inline]
     pub fn handle_stat_line_mode0_cond(&mut self) {
-        if self._stat & (STATFlag::Mode0IntSelect as u8) != 0 {
-            self.stat_line |= true;
-        }
+        self.handle_stat_line_mode_cond(STATFlag::Mode0IntSelect);
     }
 
+    #[inline]
     pub fn handle_stat_line_mode1_cond(&mut self) {
-        if self._stat & (STATFlag::Mode1IntSelect as u8) != 0 {
-            self.stat_line |= true;
-        }
+        self.handle_stat_line_mode_cond(STATFlag::Mode1IntSelect);
     }
 
+    #[inline]
     pub fn handle_stat_line_mode2_cond(&mut self) {
-        if self._stat & (STATFlag::Mode2IntSelect as u8) != 0 {
-            self.stat_line |= true;
-        }
+        self.handle_stat_line_mode_cond(STATFlag::Mode2IntSelect);
     }
 
     pub fn update_input_state(&mut self, dpad_state: u8, button_state: u8) {
         self.prev_dpad_state = self.dpad_state;
         self.prev_button_state = self.button_state;
-        self.dpad_state = dpad_state;
-        self.button_state = button_state;
+
+        self.dpad_state = dpad_state & 0x0F;
+        self.button_state = button_state & 0x0F;
 
         let dpad_fell = !self.dpad_state & self.prev_dpad_state;
         let button_fell = !self.button_state & self.prev_button_state;
 
-        if (dpad_fell | button_fell) & 0x0F != 0 {
+        if (dpad_fell | button_fell) != 0 {
             self.request_interrupt(Interrupt::Joypad);
         }
     }

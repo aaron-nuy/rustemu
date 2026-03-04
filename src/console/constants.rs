@@ -3,7 +3,7 @@ pub const MEMORY_SIZE: usize = 0x10000;
 pub const CARTRIDGE_SIZE: usize = 0x8000;
 
 pub const TIMER_DIV_INC_RATE: u64 = 0x100;
-
+pub const REG_COUNT: usize = 42;
 pub const OAM_SCAN_DOT_LENGTH: u64 = 80;
 pub const FRAME_DOT_CYCLES: u64 = 70224;
 pub const NUMBER_SCANLINES: u64 = 154;
