@@ -15,18 +15,18 @@ Gameboy DMG Emulator
 ## What works
 
 -   **CPU**
-    -   Fully implemented and verified
-    -   Passes all Blargg CPU test ROMs
+    - Fully implemented and verified
+    - Passes all Blargg CPU test ROMs
 -   **PPU**
-    -   Functional pixel pipeline
-    -   Integrated with display output
+    - Functional pixel pipeline
+    - Integrated with display output
 -   **Input**
-    -   Joypad input handling
+    - Joypad input handling
 -   **Memory**
-    -   Core memory bus implementation
-    -   **MBC0** cartridge support
+    - RAM and Bus
+    - MBC0 cartridge support
 -   **Custom Color Palettes**
-    -   Any custom RGB 4 color palette
+    - Custom RGB 4 color palette
 
 
 ## Build
@@ -49,11 +49,10 @@ Run the emulator with
 ### Arguments
 
 -   `--rom_file`\
-    Path to a `.gb` ROM file.
+    Path to a `.gb` ROM file
 
 -   `--palette`\
-    RGB hex colors separated by spaces.\
-    Order is from darkest to lightest shade.
+    RGB hex colors separated by spaces ordered from lightest to darkest
 
 Example
 
