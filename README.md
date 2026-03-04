@@ -13,11 +13,11 @@ Gameboy DMG Emulator
 </p>
 
 ## Controls
-  A      => A
-  B      => B
-  Dpad   => Arrow Keys
-  Select => E
-  Start  => Space
+  A      => A\
+  B      => B\
+  Dpad   => Arrow Keys\
+  Select => E\
+  Start  => Space\
 
 ## What works
 
