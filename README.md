@@ -12,6 +12,13 @@ Gameboy DMG Emulator
   <img src="pal_4.png" width="45%" />
 </p>
 
+## Controls
+  A      => A
+  B      => B
+  Dpad   => Arrow Keys
+  Select => E
+  Start  => Space
+
 ## What works
 
 -   **CPU**
@@ -27,7 +34,6 @@ Gameboy DMG Emulator
     - MBC0 cartridge support
 -   **Custom Color Palettes**
     - Custom RGB 4 color palette
-
 
 ## Build
 
