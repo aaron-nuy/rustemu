@@ -173,14 +173,21 @@ impl Gpu {
         self.vram[addr as usize]
     }
 
-    fn get_tile_addr_adjusted_offset(&self, objects: bool, no_use_signed_addressing: bool) -> u16 {
+    fn get_tile_addr_adjusted(
+        &self,
+        index: u8,
+        objects: bool,
+        no_use_signed_addressing: bool,
+    ) -> u16 {
         let signed = !objects && !no_use_signed_addressing;
 
         if !signed {
-            TILE_BLOCK_0 - VRAM_BEGIN
+            const OFFSET: u16 = TILE_BLOCK_0 - VRAM_BEGIN;
+            OFFSET + (index as u16) * TILE_SIZE
         } else {
             const SIGNED_IDX_OFFSET: u8 = 128;
-            (TILE_BLOCK_1 - VRAM_BEGIN).wrapping_sub(SIGNED_IDX_OFFSET as u16 * TILE_SIZE)
+            const OFFSET: u16 = TILE_BLOCK_1 - VRAM_BEGIN;
+            OFFSET + (index.wrapping_add(SIGNED_IDX_OFFSET) as u16) * TILE_SIZE
         }
     }
 
@@ -205,13 +212,11 @@ impl Gpu {
         let tile_idx_y = adjusted_y as usize / TILE_DIMS as usize;
         let line_offset = tile_map_offset + TILE_MAP_DIMS as usize * tile_idx_y;
 
-        let offset = self.get_tile_addr_adjusted_offset(false, no_signed_addressing);
-
         for tile_idx_x in 0..TILE_MAP_DIMS as usize {
             let tile_idx = self.vram[line_offset + tile_idx_x];
 
-            let base = (offset as usize + tile_idx as usize * TILE_SIZE as usize)
-                + TILE_LINE_BYTE_SIZE * tile_y as usize;
+            let tile_addr = self.get_tile_addr_adjusted(tile_idx, false, no_signed_addressing);
+            let base = tile_addr as usize + TILE_LINE_BYTE_SIZE * tile_y as usize;
             let start = tile_idx_x * TILE_DIMS as usize;
 
             let line_bytes: &[u8; 2] = self.vram[base..base + 2].try_into().unwrap();
@@ -254,13 +259,11 @@ impl Gpu {
         let tile_idx_y = adjusted_y as usize / TILE_DIMS as usize;
         let line_offset = tile_map_offset + TILE_MAP_DIMS as usize * tile_idx_y;
 
-        let offset = self.get_tile_addr_adjusted_offset(false, no_signed_addressing);
-
         for tile_idx_x in 0..TILE_MAP_DIMS as usize {
             let tile_idx = self.vram[line_offset + tile_idx_x];
 
-            let base = (offset as usize + tile_idx as usize * TILE_SIZE as usize)
-                + TILE_LINE_BYTE_SIZE * tile_y as usize;
+            let tile_addr = self.get_tile_addr_adjusted(tile_idx, false, no_signed_addressing);
+            let base = tile_addr as usize + TILE_LINE_BYTE_SIZE * tile_y as usize;
             let start = tile_idx_x * TILE_DIMS as usize;
 
             let line_bytes: &[u8; 2] = self.vram[base..base + 2].try_into().unwrap();
