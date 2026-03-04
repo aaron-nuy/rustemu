@@ -2,6 +2,16 @@
 
 Gameboy DMG Emulator
 
+<p align="center">
+  <img src="pal_1.png" width="45%" />
+  <img src="pal_2.png" width="45%" />
+</p>
+
+<p align="center">
+  <img src="pal_3.png" width="45%" />
+  <img src="pal_4.png" width="45%" />
+</p>
+
 ------------------------------------------------------------------------
 
 ## What works
