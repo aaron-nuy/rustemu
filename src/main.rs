@@ -1,14 +1,15 @@
 use console::gameboy::Gameboy;
-use lexopt::prelude::*;
 use lexopt::Parser;
+use lexopt::prelude::*;
 use std::process;
+use std::process::exit;
 
 mod console;
 
 fn main() {
     //let mut rom_file = "dr_mario.gb".to_string();
     //let mut rom_file = "tetris.gb".to_string();
-    let mut rom_file = "alleyway.gb".to_string();
+    //let mut rom_file = "alleyway.gb".to_string();
     //let mut rom_file = "dmg-acid2.gb".to_string();
     //let rom_file = "kroyo.gb".to_string();
     //let mut rom_file = "test_roms/01-special.gb".to_string();
@@ -31,7 +32,10 @@ fn main() {
 
             let rom = match rom_file_args {
                 Some(rom_file_o) => rom_file_o.to_string(),
-                None => rom_file.to_string(),
+                None => {
+                    eprintln!("No romfile selected");
+                    exit(1);
+                }
             };
 
             let mut gameboy = match palette_args {
