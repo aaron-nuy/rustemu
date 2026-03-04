@@ -154,10 +154,9 @@ impl Bus {
 
         self.hw_registers.handle_stat_line();
 
-        self.hw_registers.handle_p1_interrupt_cond();
     }
 
-    pub fn p1_as_ref(&mut self) -> &mut u8 {
-        self.hw_registers.p1_as_ref()
+    pub fn update_input_state(&mut self, dpad_state: u8, button_state: u8) {
+        self.hw_registers.update_input_state(dpad_state, button_state);
     }
 }

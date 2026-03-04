@@ -1,12 +1,10 @@
 use crate::console::bus::Bus;
+use crate::console::constants::FRAME_DOT_CYCLES;
 use crate::console::cpu::cpu::Cpu;
 use crate::console::gui::gui::{Gui, Palette};
-use crate::console::hw_register::HwRegister;
 use crate::console::timer::Timer;
 use std::fs;
 use std::path::Path;
-use crate::console::constants::FRAME_DOT_CYCLES;
-use crate::console::gui::input;
 
 pub struct Gameboy {
     cpu: Cpu,

@@ -6,8 +6,8 @@ use std::process;
 mod console;
 
 fn main() {
-    let mut rom_file = "dr_mario.gb".to_string();
-    //let mut rom_file = "tetris.gb".to_string();
+    //let mut rom_file = "dr_mario.gb".to_string();
+    let mut rom_file = "tetris.gb".to_string();
     //let mut rom_file = "alleyway.gb".to_string();
     //let mut rom_file = "dmg-acid2.gb".to_string();
     //let rom_file = "kroyo.gb".to_string();

@@ -2,6 +2,7 @@ use crate::console::constants::SCREEN_HEIGHT;
 use crate::console::constants::SCREEN_WIDTH;
 use crate::console::gui::gpu::PixelLevel;
 use minifb::{Key, Window, WindowOptions};
+use crate::console::gui::input::compute_input_states;
 
 pub struct Palette {
     zero: u32,
@@ -89,17 +90,14 @@ impl Gui {
         for y in 0..SCREEN_HEIGHT {
             for x in 0..SCREEN_WIDTH {
                 let idx: usize = SCREEN_WIDTH * y + x;
-
                 self.display[idx] = self.palette.translate_palette(gpu_buffer[idx]);
             }
         }
-
         self.window
             .update_with_buffer(&self.display, SCREEN_WIDTH, SCREEN_HEIGHT).expect("Something went wrong");
 
-        use crate::console::gui::input;
-        let p1 = bus.p1_as_ref();
-        input::update_input(&mut self.window, p1);
+        let (dpad, buttons) = compute_input_states(&self.window);
+        bus.update_input_state(dpad, buttons);
     }
 
     pub fn should_close(&self) -> bool {

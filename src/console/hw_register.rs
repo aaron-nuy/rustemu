@@ -108,13 +108,17 @@ pub struct HwRegisters {
     _wy: u8,
     _wx: u8,
     _ie: u8,
-    prev_p1: u8,
     prev_stat_line: bool,
     stat_line: bool,
     pub dma_data: DMAData,
+    pub dpad_state: u8,
+    pub button_state: u8,
+    prev_dpad_state: u8,
+    prev_button_state: u8,
 }
 
 impl HwRegisters {
+    
     pub fn write_to_register(&mut self, hw_register: HwRegister, value: u8) {
         use HwRegister::*;
         match hw_register {
@@ -186,10 +190,6 @@ impl HwRegisters {
         }
     }
 
-    pub fn p1_as_ref(&mut self) -> &mut u8 {
-        &mut self._p1
-    }
-
     pub fn write_to_register_addr(&mut self, addr: u16, value: u8) {
         let hw_register_addr = HwRegister::from_addr(addr);
         self.write_to_register(hw_register_addr, value);
@@ -198,7 +198,18 @@ impl HwRegisters {
     pub fn read_from_register(&self, hw_register: HwRegister) -> u8 {
         use HwRegister::*;
         match hw_register {
-            P1 => self._p1,
+            P1 => {
+                use crate::console::gui::input::*;
+                let mut low_nibble = 0x0F;
+                if self._p1 & (P1Flags::DPAD as u8) == 0 {
+                    low_nibble &= self.dpad_state;
+                }
+                if self._p1 & (P1Flags::BUTTONS as u8) == 0 {
+                    low_nibble &= self.button_state;
+                }
+
+                (self._p1 & 0xF0) | low_nibble
+            },
             SB => self._sb,
             SC => self._sc,
             DIV => self._div,
@@ -328,15 +339,19 @@ impl HwRegisters {
         }
     }
 
-    pub fn handle_p1_interrupt_cond(&mut self) {
-        const LOWER_NIBBLE: u8 = 0x0F;
-        let fell = self.prev_p1 & !self._p1;
-        let should_trigger_int = (fell & LOWER_NIBBLE) != 0;
+    pub fn update_input_state(&mut self, dpad_state: u8, button_state: u8) {
+        self.prev_dpad_state = self.dpad_state;
+        self.prev_button_state = self.button_state;
+        self.dpad_state = dpad_state;
+        self.button_state = button_state;
 
-        if should_trigger_int {
+        let dpad_fell = !self.dpad_state & self.prev_dpad_state;
+        let button_fell = !self.button_state & self.prev_button_state;
+
+        if (dpad_fell | button_fell) & 0x0F != 0 {
             self.request_interrupt(Interrupt::Joypad);
         }
 
-        self.prev_p1 = self._p1;
     }
+
 }
