@@ -12,8 +12,6 @@ Gameboy DMG Emulator
   <img src="pal_4.png" width="45%" />
 </p>
 
-------------------------------------------------------------------------
-
 ## What works
 
 -   **CPU**
@@ -30,7 +28,6 @@ Gameboy DMG Emulator
 -   **Custom Color Palettes**
     -   Any custom RGB 4 color palette
 
-------------------------------------------------------------------------
 
 ## Build
 
@@ -40,8 +37,6 @@ Install Rust and Cargo for your distribution then run
     git clone https://github.com/aaron-nuy/rustemu
     cd rustemu
     cargo build --release
-
-------------------------------------------------------------------------
 
 ## Running
 
@@ -65,8 +60,6 @@ Example
     cargo run --release -- \
       --palette 2d1b00 1e3a1a b35b22 dcd3a1 \
       --rom_file ./roms/tetris.gb
-
-------------------------------------------------------------------------
 
 ## TODO:
 
