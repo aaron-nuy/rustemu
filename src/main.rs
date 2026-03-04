@@ -8,9 +8,9 @@ mod console;
 fn main() {
     //let mut rom_file = "dr_mario.gb".to_string();
     //let mut rom_file = "tetris.gb".to_string();
-    //let mut rom_file = "alleyway.gb".to_string();
+    let mut rom_file = "alleyway.gb".to_string();
     //let mut rom_file = "dmg-acid2.gb".to_string();
-    let rom_file = "kroyo.gb".to_string();
+    //let rom_file = "kroyo.gb".to_string();
     //let mut rom_file = "test_roms/01-special.gb".to_string();
     //let mut rom_file = "test_roms/02-interrupts.gb".to_string();
     //let mut rom_file = "test_roms/03-op sp,hl.gb".to_string();

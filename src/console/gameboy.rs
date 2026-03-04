@@ -5,6 +5,7 @@ use crate::console::gui::gui::{Gui, Palette};
 use crate::console::timer::Timer;
 use std::fs;
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 pub struct Gameboy {
     cpu: Cpu,
@@ -47,6 +48,8 @@ impl Gameboy {
         let mut cycles_since_last_render = 0;
         let mut dot_cycles_to_run_cpu = 0;
 
+        const FRAME_DURATION: Duration = Duration::from_nanos(16_742_706);
+        let mut frame_start = Instant::now();
         while !self.gui.should_close() {
             // Cpu ticks every 4 dot cycles
             if dot_cycles_to_run_cpu == 0 {
@@ -56,13 +59,19 @@ impl Gameboy {
             self.timer.tick(&mut self.bus);
             self.bus.tick();
 
-            if cycles_since_last_render >= FRAME_DOT_CYCLES {
+            dot_cycles_to_run_cpu -= 1;
+
+            if self.bus.is_vblank_start() {
                 self.gui.update(&mut self.bus);
-                cycles_since_last_render = 0;
+
+                let elapsed = frame_start.elapsed();
+                if elapsed < FRAME_DURATION {
+                    std::thread::sleep(FRAME_DURATION - elapsed);
+                }
+                frame_start = Instant::now();
             }
 
             cycles_since_last_render += 1;
-            dot_cycles_to_run_cpu -= 1;
         }
     }
 }

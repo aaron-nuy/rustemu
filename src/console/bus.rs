@@ -1,7 +1,7 @@
 use crate::console::audio::Audio;
 use crate::console::cartridge::Cartridge;
 use crate::console::constants::*;
-use crate::console::gui::gpu::{Gpu, PixelLevel};
+use crate::console::gui::gpu::{Gpu, GpuMode, PixelLevel};
 use crate::console::hw_register::HwRegister;
 use crate::console::hw_register::HwRegisters;
 use crate::console::interrupt::Interrupt;
@@ -158,5 +158,9 @@ impl Bus {
     pub fn update_input_state(&mut self, dpad_state: u8, button_state: u8) {
         self.hw_registers
             .update_input_state(dpad_state, button_state);
+    }
+
+    pub fn is_vblank_start(&self) -> bool {
+        self.gpu.is_vblank_started()
     }
 }

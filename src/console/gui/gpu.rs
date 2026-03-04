@@ -203,6 +203,7 @@ pub struct Gpu {
     oam_line: [PixelLevel; TILE_MAP_DIMS as usize * TILE_DIMS as usize],
     oam_prio: [bool; TILE_MAP_DIMS as usize * TILE_DIMS as usize],
     oam_palette: [bool; TILE_MAP_DIMS as usize * TILE_DIMS as usize],
+    start_vblank: bool
 }
 
 impl Gpu {
@@ -217,6 +218,7 @@ impl Gpu {
             oam_line: [PixelLevel::Zero; TILE_MAP_DIMS as usize * TILE_DIMS as usize],
             oam_prio: [false; TILE_MAP_DIMS as usize * TILE_DIMS as usize],
             oam_palette: [false; TILE_MAP_DIMS as usize * TILE_DIMS as usize],
+            start_vblank: false,
         }
     }
 
@@ -437,16 +439,17 @@ impl Gpu {
                 self.get_tile_addr_adjusted(second_half_idx, true, true)
             };
 
-            let start_x = max(oam_entry.screen_x(), 0);
-            let end_x = min(oam_entry.screen_x() + TILE_DIMS as i16 - 1, SCREEN_WIDTH as i16);
+            let screen_x = oam_entry.screen_x();
+            let start_x = screen_x.max(0);
+            let end_x = (screen_x + TILE_DIMS as i16 - 1).min(SCREEN_WIDTH as i16 - 1);
 
-            let local_start_x = if start_x < 0 {
-                oam_entry.screen_x().abs()
+            let local_start_x = if screen_x < 0 {
+                screen_x.abs()
             } else {
                 0
             };
-            let local_end_x = if end_x as usize > SCREEN_WIDTH {
-                SCREEN_WIDTH as u8 - 1u8 - end_x as u8
+            let local_end_x = if end_x as usize >= SCREEN_WIDTH {
+                (SCREEN_WIDTH as i16 - 1 - end_x + TILE_DIMS as i16) as u8
             } else {
                 TILE_DIMS as u8 - 1
             };
@@ -545,7 +548,10 @@ impl Gpu {
             self.gpu_mode = GpuMode::VBlank;
             hw_registers.handle_stat_line_mode1_cond();
             if (ly == SCREEN_HEIGHT as u8 && scanline_dots == 0) {
+                self.start_vblank = true;
                 hw_registers.request_interrupt(Interrupt::VBlank);
+            } else {
+                self.start_vblank = false;
             }
         } else {
             if (scanline_dots < OAM_SCAN_DOT_LENGTH) {
@@ -587,5 +593,9 @@ impl Gpu {
         }
 
         self.dots += 1;
+    }
+
+    pub fn is_vblank_started(&self) -> bool {
+        self.start_vblank
     }
 }
