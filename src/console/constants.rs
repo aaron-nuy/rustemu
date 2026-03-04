@@ -11,6 +11,7 @@ pub const DOTS_PER_SCANLINE: u64 = 456;
 pub const DMA_MULT: u16 = 0x100;
 pub const OAM_BEGIN: u16 = 0xFE00;
 pub const OAM_END: u16 = 0xFE9F;
+pub const MAX_OJBS_PER_SCANLINE: u16 = 10;
 pub const OAM_SIZE: u16 = OAM_END - OAM_BEGIN + 1;
 pub const OAM_ENTRY_SIZE: u16 = 4;
 pub const VRAM_BEGIN: u16 = 0x8000;

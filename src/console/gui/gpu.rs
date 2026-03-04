@@ -1,7 +1,8 @@
-use crate::console::bus::Bus;
 use crate::console::constants::*;
+use crate::console::hw_register::HwRegister::{OBP0, OBP1};
 use crate::console::hw_register::{HwRegister, HwRegisters};
 use crate::console::interrupt::Interrupt;
+use std::cmp::{max, min};
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -14,11 +15,37 @@ pub enum PixelLevel {
 
 impl PixelLevel {
     #[inline(always)]
+    pub fn decode_line_obj(
+        in_buff: &[PixelLevel],
+        flip_x: bool,
+        palette_in: bool,
+        prio_in: bool,
+        out: &mut [PixelLevel],
+        palette_out: &mut [bool],
+        prio_out: &mut [bool],
+    ) {
+        for x in 0..out.len() {
+            let x_idx: usize = if flip_x {
+                TILE_DIMS as usize - x - 1
+            } else {
+                x
+            };
+
+            if in_buff[x] != PixelLevel::Zero {
+                out[x_idx] = in_buff[x];
+                palette_out[x_idx] = palette_in;
+                prio_out[x_idx] = prio_in;
+            }
+        }
+    }
+
+    #[inline(always)]
     pub fn decode_line(encoded_line: &[u8; 2], out: &mut [PixelLevel; TILE_DIMS as usize]) {
         for x in 0..TILE_DIMS as usize {
             let shift = 7 - x;
             let msb = (encoded_line[0] >> shift) & 0b1;
             let lsb = (encoded_line[1] >> shift) & 0b1;
+
             out[x] = PixelLevel::from((msb << 1) | lsb);
         }
     }
@@ -84,6 +111,8 @@ enum OAMFlagMask {
     YFlip = 0b0100_0000,
     Priority = 0b1000_0000, // If 1 bg/window are drawn drawn on top of it, only indices 1,2,3 are drawn on top
 }
+
+#[repr(C)]
 struct OAMEntry {
     pub y: u8,
     pub x: u8,
@@ -102,34 +131,55 @@ impl OAMEntry {
     }
 
     pub fn from_bytes(bytes: &[u8; 4]) -> Self {
-        let y = bytes[0];
-        let x = bytes[1];
-        let tile_index = bytes[2];
-        let flags = bytes[3];
         Self {
-            y,
-            x,
-            tile_index,
-            flags,
+            y: bytes[0],
+            x: bytes[1],
+            tile_index: bytes[2],
+            flags: bytes[3],
         }
     }
 
+    pub unsafe fn from_ptr(addr_in_oam: u16, oam_ram: &[u8; OAM_SIZE as usize]) -> &Self {
+        unsafe { &*(std::ptr::addr_of!(oam_ram[addr_in_oam as usize]) as *const Self) }
+    }
+
     pub fn screen_x(&self) -> i16 {
-        (self.x as i8 as i16) - 8
+        self.x as i16 - 8
     }
 
     pub fn screen_y(&self) -> i16 {
-        (self.y as i8 as i16) - 16
+        self.y as i16 - 16
     }
 
-    pub fn contributes_to_limit(&self, long_sprite: bool) -> bool {
-        let min_y_to_show = if long_sprite { 0 } else { 8 };
-
-        self.y < 160 && self.y > min_y_to_show
+    pub fn contributes_to_limit(&self, scanline_y: u8, long_sprite: bool) -> bool {
+        let height: i16 = if long_sprite { 16 } else { 8 };
+        let sy = self.screen_y();
+        sy <= (scanline_y as i16) && (scanline_y as i16) < (sy + height)
     }
 
-    pub fn should_draw(&self, long_sprite: bool) -> bool {
-        self.contributes_to_limit(long_sprite) && self.x != 0 && self.x < 168
+    pub fn should_draw(&self, scanline_y: u8, long_sprite: bool) -> bool {
+        self.contributes_to_limit(scanline_y, long_sprite) && self.x != 0 && self.x < 168
+    }
+
+    pub fn get_tile_y_to_display(&self, scanline_y: u8, long_sprite: bool) -> Option<u8> {
+        if (!self.should_draw(scanline_y, long_sprite)) {
+            return None;
+        }
+
+        let flipped_y = self.flags & OAMFlagMask::YFlip as u8 != 0;
+
+        let height = if long_sprite {
+            TILE_DIMS * 2
+        } else {
+            TILE_DIMS
+        };
+        let local_y = scanline_y as i16 - self.screen_y();
+
+        if !flipped_y {
+            Some(local_y as u8)
+        } else {
+            Some(height as u8 - 1 - local_y as u8)
+        }
     }
 }
 
@@ -146,10 +196,13 @@ pub struct Gpu {
     dots: u64,
     pub gpu_mode: GpuMode,
     pub vram: [u8; VRAM_SIZE as usize],
-    pub oam: [u8; OAM_SIZE as usize],
     pub buffer: [PixelLevel; SCREEN_WIDTH * SCREEN_HEIGHT],
     bg_line: [PixelLevel; TILE_MAP_DIMS as usize * TILE_DIMS as usize],
     wd_line: [PixelLevel; TILE_MAP_DIMS as usize * TILE_DIMS as usize],
+    // Need to store priority and palette flags to use during rendering
+    oam_line: [PixelLevel; TILE_MAP_DIMS as usize * TILE_DIMS as usize],
+    oam_prio: [bool; TILE_MAP_DIMS as usize * TILE_DIMS as usize],
+    oam_palette: [bool; TILE_MAP_DIMS as usize * TILE_DIMS as usize],
 }
 
 impl Gpu {
@@ -158,10 +211,12 @@ impl Gpu {
             dots: 0,
             gpu_mode: GpuMode::HBlank,
             vram: [0; VRAM_SIZE as usize],
-            oam: [0; OAM_SIZE as usize],
             buffer: [PixelLevel::Zero; SCREEN_WIDTH * SCREEN_HEIGHT],
             bg_line: [PixelLevel::Zero; TILE_MAP_DIMS as usize * TILE_DIMS as usize],
             wd_line: [PixelLevel::Zero; TILE_MAP_DIMS as usize * TILE_DIMS as usize],
+            oam_line: [PixelLevel::Zero; TILE_MAP_DIMS as usize * TILE_DIMS as usize],
+            oam_prio: [false; TILE_MAP_DIMS as usize * TILE_DIMS as usize],
+            oam_palette: [false; TILE_MAP_DIMS as usize * TILE_DIMS as usize],
         }
     }
 
@@ -192,12 +247,12 @@ impl Gpu {
     }
 
     fn extract_bg_line(
-        &self,
+        &mut self,
         curr_ly: u8,
         scy: u8,
         use_tile_map_2: bool,
         no_signed_addressing: bool,
-    ) -> [PixelLevel; TILE_MAP_DIMS as usize * TILE_DIMS as usize] {
+    ) {
         let tile_map_offset: usize = if use_tile_map_2 {
             (TILE_MAP_2_BEGIN - VRAM_BEGIN) as usize
         } else {
@@ -228,16 +283,16 @@ impl Gpu {
             PixelLevel::decode_line(line_bytes, out);
         }
 
-        line
+        self.bg_line = line;
     }
 
     fn extract_wd_line(
-        &self,
+        &mut self,
         curr_ly: u8,
         wy: u8,
         use_tile_map_2: bool,
         no_signed_addressing: bool,
-    ) -> [PixelLevel; TILE_MAP_DIMS as usize * TILE_DIMS as usize] {
+    ) {
         let tile_map_offset: usize = if use_tile_map_2 {
             (TILE_MAP_2_BEGIN - VRAM_BEGIN) as usize
         } else {
@@ -248,10 +303,6 @@ impl Gpu {
             [PixelLevel::Zero; TILE_MAP_DIMS as usize * TILE_DIMS as usize];
 
         let adjusted_y = (curr_ly as i16) - (wy as i16);
-
-        if adjusted_y < 0 {
-            return line;
-        }
 
         let adjusted_y: u8 = adjusted_y as u8;
 
@@ -275,7 +326,7 @@ impl Gpu {
             PixelLevel::decode_line(line_bytes, out);
         }
 
-        line
+        self.wd_line = line;
     }
 
     fn translate_pixel_level_bgp(&self, pixel_level: PixelLevel, bgp: u8) -> PixelLevel {
@@ -286,22 +337,144 @@ impl Gpu {
         &self,
         pixel_level: PixelLevel,
         obp_1: bool,
-        bus: &Bus,
-    ) -> Option<PixelLevel> {
-        // Pixel index zero is transparent
-        if pixel_level == PixelLevel::Zero {
-            return None;
-        }
-
-        let register_addr = if obp_1 {
-            HwRegister::OBP1 as u16
+        hw_registers: &HwRegisters,
+    ) -> PixelLevel {
+        let register = if obp_1 {
+            hw_registers.read_from_register(OBP1)
         } else {
-            HwRegister::OBP0 as u16
+            hw_registers.read_from_register(OBP0)
         };
-        let register = bus.read_from_8b(register_addr);
-        Some(PixelLevel::from(
-            (register >> (pixel_level as u8 * 2)) & 0b11,
-        ))
+
+        PixelLevel::from((register >> (pixel_level as u8 * 2)) & 0b11)
+    }
+
+    fn decide_palette(
+        bg_i: PixelLevel,
+        bg_p: PixelLevel,
+        wd_i: Option<PixelLevel>,
+        wd_p: Option<PixelLevel>,
+        obj_i: PixelLevel,
+        obj_p: PixelLevel,
+        bg_enabled: bool,
+        wd_enabled: bool,
+        obj_enabled: bool,
+        obj_priority: bool,
+    ) -> PixelLevel {
+        let draw_obj = obj_enabled && obj_i != PixelLevel::Zero;
+        let draw_window = wd_enabled && wd_i.is_some() && wd_p.is_some();
+
+        let bg_wind_pixel = if bg_enabled {
+            if draw_window { wd_p.unwrap() } else { bg_p }
+        } else {
+            PixelLevel::Zero
+        };
+        let bg_wind_index = if bg_enabled {
+            if draw_window { wd_i.unwrap() } else { bg_i }
+        } else {
+            PixelLevel::Zero
+        };
+
+        let bg_wind_pixel_over_obj = obj_priority && (bg_wind_index != PixelLevel::Zero);
+
+        if bg_wind_pixel_over_obj || !draw_obj {
+            bg_wind_pixel
+        } else {
+            obj_p
+        }
+    }
+
+    fn extract_obj_line(
+        &mut self,
+        long_sprite: bool,
+        curr_ly: u8,
+        oam_ram: &[u8; OAM_SIZE as usize],
+    ) {
+        self.oam_line = [PixelLevel::Zero; TILE_MAP_DIMS as usize * TILE_DIMS as usize];
+        self.oam_prio = [false; TILE_MAP_DIMS as usize * TILE_DIMS as usize];
+        self.oam_palette = [false; TILE_MAP_DIMS as usize * TILE_DIMS as usize];
+
+        // TODO: implement object on object priority
+        // From pandocs:
+        // the smaller the X coordinate, the higher the priority. When X coordinates are identical,
+        // the object located first in OAM has higher priority
+        let mut obj_count = 0;
+        for oam_index in 0..OAM_SIZE / OAM_ENTRY_SIZE {
+            if obj_count >= MAX_OJBS_PER_SCANLINE {
+                break;
+            }
+
+            let oam_entry_addr = oam_index * OAM_ENTRY_SIZE;
+
+            let oam_entry = unsafe { OAMEntry::from_ptr(oam_entry_addr, oam_ram) };
+
+            if !oam_entry.contributes_to_limit(curr_ly, long_sprite) {
+                continue;
+            }
+
+            obj_count += 1;
+
+            let obj_local_y = oam_entry.get_tile_y_to_display(curr_ly, long_sprite);
+            if obj_local_y.is_none() {
+                continue;
+            }
+
+            let x_flipped = (oam_entry.flags & OAMFlagMask::XFlip as u8) != 0;
+            let priority = (oam_entry.flags & OAMFlagMask::Priority as u8) != 0;
+            let palette = (oam_entry.flags & OAMFlagMask::DmgPalette as u8) != 0;
+
+            let first_half_idx = if !long_sprite {
+                oam_entry.tile_index
+            } else {
+                oam_entry.tile_index & !0b1
+            };
+            let second_half_idx = first_half_idx.wrapping_add(1);
+
+            let use_first_half = obj_local_y.unwrap() < TILE_DIMS as u8;
+
+            let tile_addr = if use_first_half {
+                self.get_tile_addr_adjusted(first_half_idx, true, true)
+            } else {
+                self.get_tile_addr_adjusted(second_half_idx, true, true)
+            };
+
+            let start_x = max(oam_entry.screen_x(), 0);
+            let end_x = min(oam_entry.screen_x() + TILE_DIMS as i16 - 1, SCREEN_WIDTH as i16);
+
+            let local_start_x = if start_x < 0 {
+                oam_entry.screen_x().abs()
+            } else {
+                0
+            };
+            let local_end_x = if end_x as usize > SCREEN_WIDTH {
+                SCREEN_WIDTH as u8 - 1u8 - end_x as u8
+            } else {
+                TILE_DIMS as u8 - 1
+            };
+
+            let mut decode_output = [PixelLevel::Zero; TILE_DIMS as usize];
+            let tile_local_y = obj_local_y.unwrap() % TILE_DIMS as u8;
+            let base = tile_addr as usize + TILE_LINE_BYTE_SIZE * tile_local_y as usize;
+            PixelLevel::decode_line(
+                self.vram[base..base + 2].try_into().unwrap(),
+                &mut decode_output,
+            );
+
+            let extracted_line_slice =
+                &mut decode_output[local_start_x as usize..=local_end_x as usize];
+            let oam_line_slice = &mut self.oam_line[start_x as usize..=end_x as usize];
+            let oam_prio_slice = &mut self.oam_prio[start_x as usize..=end_x as usize];
+            let oam_palette_slice = &mut self.oam_palette[start_x as usize..=end_x as usize];
+
+            PixelLevel::decode_line_obj(
+                extracted_line_slice,
+                x_flipped,
+                palette,
+                priority,
+                oam_line_slice,
+                oam_palette_slice,
+                oam_prio_slice,
+            );
+        }
     }
 
     fn handle_mode_3(&mut self, curr_y: u8, curr_x: u8, hw_registers: &mut HwRegisters, lcdc: u8) {
@@ -315,6 +488,9 @@ impl Gpu {
         let bg_x = curr_x.wrapping_add(scx);
         let wd_x = (curr_x as i16) - (wx as i16) + 7;
 
+        let obj_i = self.oam_line[curr_x as usize];
+        let obj_prio = self.oam_prio[curr_x as usize];
+        let obj_palette = self.oam_palette[curr_x as usize];
         let bg_i = self.bg_line[bg_x as usize];
         let opt_wd_i = if wd_x >= 0 && wd_x < SCREEN_WIDTH as i16 {
             Some(self.wd_line[wd_x as usize])
@@ -327,20 +503,25 @@ impl Gpu {
         let opt_wd_p = opt_wd_i.map(|i| {
             self.translate_pixel_level_bgp(i, hw_registers.read_from_register(HwRegister::BGP))
         });
+        let obj_p = self.translate_pixel_level_other(obj_i, obj_palette, hw_registers);
 
-        let mut out_c = PixelLevel::Zero;
-        if bg_enabled {
-            out_c = if wd_enabled {
-                opt_wd_p.unwrap_or(bg_p)
-            } else {
-                bg_p
-            };
-        }
+        let out_c = Self::decide_palette(
+            bg_i,
+            bg_p,
+            opt_wd_i,
+            opt_wd_p,
+            obj_i,
+            obj_p,
+            bg_enabled,
+            wd_enabled,
+            obj_enabled,
+            obj_prio,
+        );
 
         self.buffer[curr_y as usize * SCREEN_WIDTH + curr_x as usize] = out_c;
     }
 
-    pub fn tick(&mut self, hw_registers: &mut HwRegisters) {
+    pub fn tick(&mut self, hw_registers: &mut HwRegisters, oam_ram: &[u8; OAM_SIZE as usize]) {
         let lcdc = hw_registers.read_from_register(HwRegister::LCDC);
 
         if lcdc & (LCDCFlag::GpuEnabled as u8) == 0 {
@@ -370,6 +551,11 @@ impl Gpu {
             if (scanline_dots < OAM_SCAN_DOT_LENGTH) {
                 // OAMScan (Mode 2)
                 self.gpu_mode = GpuMode::OamScan;
+
+                if (scanline_dots == 0) {
+                    let long_sprite = lcdc & LCDCFlag::LongSpriteEnabled as u8 != 0;
+                    self.extract_obj_line(long_sprite, ly, oam_ram);
+                }
                 hw_registers.handle_stat_line_mode2_cond();
             } else if (scanline_dots < OAM_SCAN_DOT_LENGTH + (SCREEN_WIDTH + 12) as u64) {
                 // 12 is min additional time spent fetching tiles and so on
@@ -382,8 +568,8 @@ impl Gpu {
                     let no_signed_addressing = lcdc & (LCDCFlag::NoSignedAddressing as u8) != 0;
                     let tm2_bg = lcdc & (LCDCFlag::UseTileMap2Bg as u8) != 0;
                     let tm2_wd = lcdc & (LCDCFlag::UseTimeMap2Wd as u8) != 0;
-                    self.bg_line = self.extract_bg_line(ly, scy, tm2_bg, no_signed_addressing);
-                    self.wd_line = self.extract_wd_line(ly, wy, tm2_wd, no_signed_addressing);
+                    self.extract_bg_line(ly, scy, tm2_bg, no_signed_addressing);
+                    self.extract_wd_line(ly, wy, tm2_wd, no_signed_addressing);
                 }
 
                 let mode_3_dot = (scanline_dots - OAM_SCAN_DOT_LENGTH) as usize;

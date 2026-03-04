@@ -146,7 +146,7 @@ impl Bus {
 
         self.hw_registers.update_stat_line();
 
-        self.gpu.tick(&mut self.hw_registers);
+        self.gpu.tick(&mut self.hw_registers, &self.ram[OAM_BEGIN as usize..=OAM_END as usize].try_into().unwrap());
 
         self.hw_registers.set_stat_gpu_mode(self.gpu.gpu_mode);
 
