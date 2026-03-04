@@ -95,10 +95,10 @@ impl Default for HwRegisters {
             prev_stat_line: false,
             stat_line: false,
             dma_data: DMAData::default(),
-            dpad_state: 0,
-            button_state: 0,
-            prev_dpad_state: 0,
-            prev_button_state: 0,
+            dpad_state: 0x0F,
+            button_state: 0x0F,
+            prev_dpad_state: 0x0F,
+            prev_button_state: 0x0F,
         }
     }
 }
