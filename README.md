@@ -19,7 +19,6 @@ It's my first time using rust for anything, so please forgive any non idiomatic 
   <img src="pal_4.png" width="45%" />
 </p>
 
------
 
 ## Controls
  - A      => A
@@ -28,7 +27,6 @@ It's my first time using rust for anything, so please forgive any non idiomatic 
  - Select => E
  - Start  => Space
 
----
 
 ## What works
 
@@ -38,7 +36,7 @@ It's my first time using rust for anything, so please forgive any non idiomatic 
 -   **Memory** RAM and Bus
 -   **Cartridge** MBC0 cartridge support
 -   **Custom Color Palettes** Custom RGB 4 color palette
------
+
 ## Build
 
 Install cargo for your distribution and run
@@ -51,7 +49,7 @@ Install cargo for your distribution and run
     git clone https://github.com/aaron-nuy/rustemu
     cd rustemu
     cargo build --release --target x86_64-unknown-uefi  
-------------
+    
 ## Running
 
 ### On host OS
