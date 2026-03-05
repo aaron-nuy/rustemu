@@ -1,7 +1,7 @@
 mod audio;
 mod bus;
 mod cartridge;
-mod constants;
+pub mod constants;
 mod cpu;
 mod gui;
 mod utils;

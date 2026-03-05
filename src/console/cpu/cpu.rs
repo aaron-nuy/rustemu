@@ -22,6 +22,8 @@ pub struct Cpu {
 
 impl Cpu {
     pub fn new() -> Self {
+        #[cfg(efi)]
+        log::info!("Initializing CPU");
         Cpu {
             _a: 0x01,
             _b: 0x00,

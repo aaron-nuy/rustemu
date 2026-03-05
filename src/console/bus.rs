@@ -1,13 +1,13 @@
 use crate::console::audio::Audio;
 use crate::console::cartridge::Cartridge;
 use crate::console::constants::*;
-use crate::console::gui::gpu::{Gpu, GpuMode, PixelLevel};
+use crate::console::gui::gpu::{Gpu, PixelLevel};
 use crate::console::hw_register::HwRegister;
 use crate::console::hw_register::HwRegisters;
 use crate::console::interrupt::Interrupt;
 
 pub struct Bus {
-    ram: Box<[u8; MEMORY_SIZE]>,
+    ram: [u8; MEMORY_SIZE as usize],
     boot_rom: [u8; BOOT_ROM_SIZE],
     boot_rom_enabled: bool,
     cartridge: Cartridge,
@@ -17,6 +17,7 @@ pub struct Bus {
 }
 
 impl Bus {
+    #[inline(always)]
     fn write_to_bus(&mut self, addr: u16, value: u8) {
         match addr {
             addr if addr == BOOT_ROM_DISABLE_ADDR => {
@@ -32,6 +33,7 @@ impl Bus {
         }
     }
 
+    #[inline(always)]
     fn read_from_bus(&self, addr: u16) -> u8 {
         match addr {
             addr if self.boot_rom_enabled && addr < BOOT_ROM_SIZE as u16 => {
@@ -69,18 +71,10 @@ impl Bus {
         u16::from_le_bytes(bytes)
     }
 
-    pub fn load_rom(&mut self, data: Vec<u8>) {
-        let rom_len = data.len().min(CARTRIDGE_SIZE);
-
-        self.ram[..rom_len].copy_from_slice(&data[..rom_len]);
+    pub fn load_rom(&mut self, data: &[u8; CARTRIDGE_SIZE]) {
+        self.ram[..CARTRIDGE_SIZE].copy_from_slice(data);
 
         self.gpu.vram.fill(0);
-    }
-
-    pub fn fill_cartridge(&mut self, data: Vec<u8>) {
-        self.cartridge.rom.copy_from_slice(&data[..]);
-
-        self.load_rom(data);
     }
 
     pub fn get_interrupt(&self) -> Option<(Interrupt, u16)> {
@@ -100,8 +94,10 @@ impl Bus {
     }
 
     pub fn new() -> Self {
+        #[cfg(efi)]
+        log::info!("Initializing BUS");
         Self {
-            ram: Box::new([0; MEMORY_SIZE]),
+            ram: [0u8; MEMORY_SIZE as usize],
             gpu: Gpu::new(),
             audio: Audio::new(),
             cartridge: Cartridge::new(),

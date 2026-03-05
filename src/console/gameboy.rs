@@ -1,11 +1,11 @@
 use crate::console::bus::Bus;
-use crate::console::constants::FRAME_DOT_CYCLES;
 use crate::console::cpu::cpu::Cpu;
 use crate::console::gui::gui::{Gui, Palette};
 use crate::console::timer::Timer;
-use std::fs;
-use std::path::Path;
-use std::time::{Duration, Instant};
+use crate::read_rom;
+use core::time::Duration;
+#[cfg(not(efi))]
+use std::time::Instant;
 
 pub struct Gameboy {
     cpu: Cpu,
@@ -37,18 +37,15 @@ impl Gameboy {
     }
 
     pub fn load(&mut self, cartridge_path: &str) {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(cartridge_path);
-        let data = fs::read(path).expect("Failed to read file");
-
-        assert_eq!(data.len(), crate::console::constants::CARTRIDGE_SIZE);
-        self.bus.fill_cartridge(data);
+        let data = read_rom::read_file(cartridge_path);
+        self.bus.load_rom(&data);
     }
 
     pub fn run(&mut self) {
-        let mut cycles_since_last_render = 0;
         let mut dot_cycles_to_run_cpu = 0;
 
         const FRAME_DURATION: Duration = Duration::from_nanos(16_742_706);
+        #[cfg(not(efi))]
         let mut frame_start = Instant::now();
         while !self.gui.should_close() {
             // Cpu ticks every 4 dot cycles
@@ -61,17 +58,24 @@ impl Gameboy {
 
             dot_cycles_to_run_cpu -= 1;
 
-            if self.bus.is_vblank_start() {
-                self.gui.update(&mut self.bus);
-
-                let elapsed = frame_start.elapsed();
-                if elapsed < FRAME_DURATION {
-                    std::thread::sleep(FRAME_DURATION - elapsed);
+            cfg_if::cfg_if! {
+                if #[cfg(efi)] {
+                    if self.bus.is_vblank_start() {
+                        use uefi::prelude::*;
+                        self.gui.update(&mut self.bus);
+                        boot::stall(FRAME_DURATION.as_micros() as usize);
+                    }
+                } else {
+                    if self.bus.is_vblank_start() {
+                        self.gui.update(&mut self.bus);
+                        let elapsed = frame_start.elapsed();
+                        if elapsed < FRAME_DURATION {
+                            std::thread::sleep(FRAME_DURATION - elapsed);
+                        }
+                        frame_start = Instant::now();
+                    }
                 }
-                frame_start = Instant::now();
             }
-
-            cycles_since_last_render += 1;
         }
     }
 }

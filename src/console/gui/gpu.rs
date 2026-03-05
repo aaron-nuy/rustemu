@@ -2,7 +2,6 @@ use crate::console::constants::*;
 use crate::console::hw_register::HwRegister::{OBP0, OBP1};
 use crate::console::hw_register::{HwRegister, HwRegisters};
 use crate::console::interrupt::Interrupt;
-use std::cmp::{max, min};
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -54,7 +53,7 @@ impl PixelLevel {
 impl From<u8> for PixelLevel {
     fn from(value: u8) -> Self {
         debug_assert!(value <= 0b11);
-        unsafe { std::mem::transmute(value) }
+        unsafe { core::mem::transmute(value) }
     }
 }
 
@@ -69,7 +68,7 @@ impl Tile {
     }
 
     pub fn from_bytes_8(bytes: [u8; 16]) -> Self {
-        let data: [u16; 8] = std::array::from_fn(|i| {
+        let data: [u16; 8] = core::array::from_fn(|i| {
             let lo = bytes[i * 2];
             let hi = bytes[i * 2 + 1];
             u16::from_le_bytes([lo, hi])
@@ -140,7 +139,7 @@ impl OAMEntry {
     }
 
     pub unsafe fn from_ptr(addr_in_oam: u16, oam_ram: &[u8; OAM_SIZE as usize]) -> &Self {
-        unsafe { &*(std::ptr::addr_of!(oam_ram[addr_in_oam as usize]) as *const Self) }
+        unsafe { &*(core::ptr::addr_of!(oam_ram[addr_in_oam as usize]) as *const Self) }
     }
 
     pub fn screen_x(&self) -> i16 {

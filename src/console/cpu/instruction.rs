@@ -1,6 +1,6 @@
 pub use crate::console::cpu::instruction_operands::*;
 pub use crate::console::cpu::register::*;
-pub use std::fmt;
+use core::fmt;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Instruction {

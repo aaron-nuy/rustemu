@@ -1,15 +1,15 @@
-use crate::console::constants::{DMA_MULT, REG_COUNT};
+use crate::console::constants::DMA_MULT;
 use crate::console::dma::DMAData;
 use crate::console::gui::gpu::{GpuMode, STATFlag};
+use crate::console::gui::input::P1_WRITE_MASK;
 use crate::console::hw_register::HwRegister::{DIV, IE, IF, LY, LYC, P1, STAT, TIMA};
 use crate::console::interrupt::Interrupt;
-use num_enum::TryFromPrimitive;
 
 const INNER_REG_ARR_SIZE: usize = 0x100;
 const INNER_REG_IDX_FLAG: usize = 0x00FF;
 
 #[repr(u16)]
-#[derive(Copy, Clone, TryFromPrimitive)]
+#[derive(Copy, Clone)]
 pub enum HwRegister {
     P1 = 0xff00,
     SB = 0xff01,
@@ -59,7 +59,7 @@ impl HwRegister {
     #[inline]
     pub fn from_addr(addr: u16) -> HwRegister {
         debug_assert!(HwRegister::supported_addr(addr));
-        unsafe { std::mem::transmute(addr) }
+        unsafe { core::mem::transmute(addr) }
     }
 
     #[inline]
@@ -119,7 +119,6 @@ impl HwRegisters {
         unsafe { *self.regs.get_unchecked(hw_register.to_index()) }
     }
 
-    // Same for raw_write
     #[inline]
     fn raw_write(&mut self, hw_register: HwRegister, value: u8) {
         unsafe { *self.regs.get_unchecked_mut(hw_register.to_index()) = value; }
@@ -129,7 +128,6 @@ impl HwRegisters {
         use HwRegister::*;
         match hw_register {
             P1 => {
-                use crate::console::gui::input::*;
                 let p1 = self.reg_as_mut_ref(P1);
                 *p1 = (*p1 & !P1_WRITE_MASK) | (value & P1_WRITE_MASK);
             }
