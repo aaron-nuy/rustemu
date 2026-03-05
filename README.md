@@ -21,19 +21,12 @@ Gameboy DMG Emulator
 
 ## What works
 
--   **CPU**
-    - Fully implemented and verified
-    - Passes all Blargg CPU test ROMs
--   **PPU**
-    - Functional pixel pipeline
-    - Integrated with display output
--   **Input**
-    - Joypad input handling
--   **Memory**
-    - RAM and Bus
-    - MBC0 cartridge support
--   **Custom Color Palettes**
-    - Custom RGB 4 color palette
+-   **CPU** Fully implemented and passes all Blargg's CPU tests
+-   **PPU** Functional pixel pipeline along with display output
+-   **Input** Joypad input handling
+-   **Memory** RAM and Bus
+-   **Cartridge** MBC0 cartridge support
+-   **Custom Color Palettes** Custom RGB 4 color palette
 
 ## Build
 
