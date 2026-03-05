@@ -2,8 +2,8 @@
 
 Gameboy DMG Emulator 
 
-The goal of making this project was to learn more about both rust and emulation.
-It's my first time using rust for anything so forgive any non idiomatic usage of the language
+The goal of this project was to learn more about both bust and emulation.
+It's my first time using rust for anything, so please forgive any non idiomatic usage of the language.
 
 <p align="center">
   <img src="pal_1.png" width="45%" />
