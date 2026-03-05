@@ -83,7 +83,7 @@ running on bare metal, it's recommended to run it on a vm.
 Follow [this](https://support.hpe.com/hpesc/public/docDisplay?docId=sd00005127en_us&page=GUID-D7147C7F-2016-0901-0A6A-00000000052B.html&docLocale=en_US)
 tutorial to understand how to create a bootable UEFI media.
 
-[This guide](https://krinkinmu.github.io/2020/10/11/efi-getting-started.htmlt) explains how to use Qemu to run an EFI application.
+[This guide](https://krinkinmu.github.io/2020/10/11/efi-getting-started.html) explains how to use Qemu to run an EFI application.
 
 The efi binary is located in `target/x86_64-unknown-uefi/<your_chosen_config>/rustemu.efi`
 
