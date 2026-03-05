@@ -1,6 +1,9 @@
 # rustemu
 
-Gameboy DMG Emulator
+Gameboy DMG Emulator 
+
+The goal of this project was to learn more about both bust and emulation.
+It's my first time using rust for anything, so please forgive any non idiomatic usage of the language.
 
 <p align="center">
   <img src="pal_1.png" width="45%" />
@@ -12,25 +15,21 @@ Gameboy DMG Emulator
   <img src="pal_4.png" width="45%" />
 </p>
 
-------------------------------------------------------------------------
+## Controls
+ - A      => A
+ - B      => B
+ - Dpad   => Arrow Keys
+ - Select => E
+ - Start  => Space
 
 ## What works
 
--   **CPU**
-    -   Fully implemented and verified
-    -   Passes all Blargg CPU test ROMs
--   **PPU**
-    -   Functional pixel pipeline
-    -   Integrated with display output
--   **Input**
-    -   Joypad input handling
--   **Memory**
-    -   Core memory bus implementation
-    -   **MBC0** cartridge support
--   **Custom Color Palettes**
-    -   Any custom RGB 4 color palette
-
-------------------------------------------------------------------------
+-   **CPU** Fully implemented and passes all Blargg's CPU tests
+-   **PPU** Functional pixel pipeline along with display output
+-   **Input** Joypad input handling
+-   **Memory** RAM and Bus
+-   **Cartridge** MBC0 cartridge support
+-   **Custom Color Palettes** Custom RGB 4 color palette
 
 ## Build
 
@@ -40,8 +39,6 @@ Install Rust and Cargo for your distribution then run
     git clone https://github.com/aaron-nuy/rustemu
     cd rustemu
     cargo build --release
-
-------------------------------------------------------------------------
 
 ## Running
 
@@ -54,19 +51,16 @@ Run the emulator with
 ### Arguments
 
 -   `--rom_file`\
-    Path to a `.gb` ROM file.
+    Path to a `.gb` ROM file
 
 -   `--palette`\
-    RGB hex colors separated by spaces.\
-    Order is from darkest to lightest shade.
+    RGB hex colors separated by spaces ordered from lightest to darkest
 
 Example
 
     cargo run --release -- \
       --palette 2d1b00 1e3a1a b35b22 dcd3a1 \
       --rom_file ./roms/tetris.gb
-
-------------------------------------------------------------------------
 
 ## TODO:
 
