@@ -3,6 +3,7 @@
 Gameboy DMG Emulator that can run over UEFI
 
 The goal of this project was to learn more about rust, emulation and uefi
+
 It's my first time using rust for anything, so please forgive any non idiomatic usage of the language.
 
 <p align="center">
