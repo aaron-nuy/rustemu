@@ -78,8 +78,7 @@ Example
 This can either be run on a hardware or a vm, while it is more fun to have it
 running on bare metal, it's recommended to run it on a vm.
 
-Follow [this]([https://wiki.congatec.com/wiki/How_to_create_a_bootable_USB_stick_with_a_UEFI_shell_(AN31))
-tutorial to understand how to create a bootable UEFI media.
+Follow [this](https://wiki.congatec.com/wiki/How_to_create_a_bootable_USB_stick_with_a_UEFI_shell_(AN31)) tutorial to understand how to create a bootable UEFI media.
 
 [This guide](https://krinkinmu.github.io/2020/10/11/efi-getting-started.html) explains how to use Qemu to run an EFI application.
 
