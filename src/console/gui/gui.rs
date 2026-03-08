@@ -55,7 +55,9 @@ impl Window {
         i_width: usize,
         i_height: usize,
     ) -> Result<(), ()> {
-        let scale = (self.width / i_width).min(self.height / i_height);
+        //let scale = (self.width / i_width).min(self.height / i_height);
+        // no scale
+        let scale = 1;
 
         let scaled_width = i_width * scale;
         let scaled_height = i_height * scale;

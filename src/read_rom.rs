@@ -19,18 +19,27 @@ pub fn read_file(cartridge_path: &str) -> [u8; CARTRIDGE_SIZE] {
         use log::info;
         use uefi::boot;
         use uefi::prelude::*;
+        use uefi::proto::loaded_image::LoadedImage;
         use uefi::proto::media::file::*;
         use uefi::proto::media::fs::SimpleFileSystem;
 
-        let fs_handle = boot::get_handle_for_protocol::<SimpleFileSystem>().unwrap();
-        let mut fs = boot::open_protocol_exclusive::<SimpleFileSystem>(fs_handle).unwrap();
+        list_efi_root();
+
+        let loaded_image =
+            boot::open_protocol_exclusive::<LoadedImage>(boot::image_handle()).unwrap();
+        let device_handle = loaded_image.device().unwrap();
+        let mut fs = boot::open_protocol_exclusive::<SimpleFileSystem>(device_handle).unwrap();
         let mut root_dir = fs.open_volume().unwrap();
 
-        info!("Opening file: {}", "default.gb");
+        info!("oppening file: {}", cartridge_path);
 
         let file_handle = root_dir
-            .open(cstr16!("\\default.gb"), FileMode::Read, FileAttribute::empty())
-            .expect("default.gb not found, make sure it's as esp/");
+            .open(
+                cstr16!("default.gb"),
+                FileMode::Read,
+                FileAttribute::empty(),
+            )
+            .expect("default.gb not found, make sure it's in the USB root");
 
         let mut file = file_handle
             .into_regular_file()
@@ -42,7 +51,7 @@ pub fn read_file(cartridge_path: &str) -> [u8; CARTRIDGE_SIZE] {
 
         if file_size != CARTRIDGE_SIZE {
             info!("Wrong size: {}", file_size);
-            boot::stall(5_000_000);
+            boot::stall(5_000_000_000);
             panic!("Wrong ROM size");
         }
 
@@ -50,4 +59,31 @@ pub fn read_file(cartridge_path: &str) -> [u8; CARTRIDGE_SIZE] {
     }
 
     data
+}
+
+#[cfg(efi)]
+pub fn list_efi_root() {
+    use log::info;
+    use uefi::boot;
+    use uefi::proto::loaded_image::LoadedImage;
+    use uefi::proto::media::file::*;
+    use uefi::proto::media::fs::SimpleFileSystem;
+
+    let loaded_image = boot::open_protocol_exclusive::<LoadedImage>(boot::image_handle()).unwrap();
+    let device_handle = loaded_image.device().unwrap();
+
+    let mut fs = boot::open_protocol_exclusive::<SimpleFileSystem>(device_handle).unwrap();
+    let mut root_dir = fs.open_volume().unwrap();
+
+    let mut buf = [0u8; 512];
+    loop {
+        match root_dir.read_entry(&mut buf) {
+            Ok(Some(entry)) => info!("  {} size={}", &entry.file_name(), entry.file_size()),
+            Ok(None) => break,
+            Err(e) => {
+                info!("error: {:?}", e);
+                break;
+            }
+        }
+    }
 }
