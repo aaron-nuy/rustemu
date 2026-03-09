@@ -86,7 +86,7 @@ Follow [this](https://wiki.congatec.com/wiki/How_to_create_a_bootable_USB_stick_
 The efi binary is located in `target/x86_64-unknown-uefi/<your_chosen_config>/rustemu.efi`
 
 Since the UEFI version does not support command-line arguments, place the ROM in the root EFI partition and name it `default.gb`
-so the emulator can automatically load it. (Make sure it's a 32KB ROM, since MBC0 is the only cartridge type supported)
+so the emulator can automatically load it. (Make sure the rom size is less than 512KB and supports MBC1 or MBC0, since those are the only supported cartridge types)
 
 
 ## TODO:
