@@ -16,24 +16,17 @@ impl PixelLevel {
     #[inline(always)]
     pub fn decode_line_obj(
         in_buff: &[PixelLevel],
-        flip_x: bool,
         palette_in: bool,
         prio_in: bool,
         out: &mut [PixelLevel],
         palette_out: &mut [bool],
         prio_out: &mut [bool],
     ) {
-        for x in 0..out.len() {
-            let x_idx: usize = if flip_x {
-                TILE_DIMS as usize - x - 1
-            } else {
-                x
-            };
-
-            if in_buff[x] != PixelLevel::Zero {
-                out[x_idx] = in_buff[x];
-                palette_out[x_idx] = palette_in;
-                prio_out[x_idx] = prio_in;
+        for i in 0..out.len() {
+            if in_buff[i] != PixelLevel::Zero {
+                out[i] = in_buff[i];
+                palette_out[i] = palette_in;
+                prio_out[i] = prio_in;
             }
         }
     }
@@ -42,8 +35,8 @@ impl PixelLevel {
     pub fn decode_line(encoded_line: &[u8; 2], out: &mut [PixelLevel; TILE_DIMS as usize]) {
         for x in 0..TILE_DIMS as usize {
             let shift = 7 - x;
-            let msb = (encoded_line[0] >> shift) & 0b1;
-            let lsb = (encoded_line[1] >> shift) & 0b1;
+            let lsb = (encoded_line[0] >> shift) & 0b1;
+            let msb = (encoded_line[1] >> shift) & 0b1;
 
             out[x] = PixelLevel::from((msb << 1) | lsb);
         }
@@ -443,14 +436,9 @@ impl Gpu {
             let end_x = (screen_x + TILE_DIMS as i16 - 1).min(SCREEN_WIDTH as i16 - 1);
 
             let local_start_x = if screen_x < 0 {
-                screen_x.abs()
+                screen_x.abs() as u8
             } else {
                 0
-            };
-            let local_end_x = if end_x as usize >= SCREEN_WIDTH {
-                (SCREEN_WIDTH as i16 - 1 - end_x + TILE_DIMS as i16) as u8
-            } else {
-                TILE_DIMS as u8 - 1
             };
 
             let mut decode_output = [PixelLevel::Zero; TILE_DIMS as usize];
@@ -461,15 +449,17 @@ impl Gpu {
                 &mut decode_output,
             );
 
-            let extracted_line_slice =
-                &mut decode_output[local_start_x as usize..=local_end_x as usize];
-            let oam_line_slice = &mut self.oam_line[start_x as usize..=end_x as usize];
-            let oam_prio_slice = &mut self.oam_prio[start_x as usize..=end_x as usize];
-            let oam_palette_slice = &mut self.oam_palette[start_x as usize..=end_x as usize];
+            if x_flipped {
+                decode_output.reverse();
+            }
+
+            let extracted_line_slice = &decode_output[local_start_x as usize..=local_start_x as usize + (end_x - start_x) as usize];
+            let oam_line_slice = &mut self.oam_line[start_x as usize..= end_x as usize];
+            let oam_prio_slice = &mut self.oam_prio[start_x as usize..= end_x as usize];
+            let oam_palette_slice = &mut self.oam_palette[start_x as usize..= end_x as usize];
 
             PixelLevel::decode_line_obj(
                 extracted_line_slice,
-                x_flipped,
                 palette,
                 priority,
                 oam_line_slice,
@@ -486,6 +476,7 @@ impl Gpu {
 
         let scx = hw_registers.read_from_register(HwRegister::SCX);
         let wx = hw_registers.read_from_register(HwRegister::WX);
+        let wy = hw_registers.read_from_register(HwRegister::WY);
 
         let bg_x = curr_x.wrapping_add(scx);
         let wd_x = (curr_x as i16) - (wx as i16) + 7;
@@ -494,7 +485,10 @@ impl Gpu {
         let obj_prio = self.oam_prio[curr_x as usize];
         let obj_palette = self.oam_palette[curr_x as usize];
         let bg_i = self.bg_line[bg_x as usize];
-        let opt_wd_i = if wd_x >= 0 && wd_x < SCREEN_WIDTH as i16 {
+
+        let should_show_window = wd_enabled && curr_y >= wy && (wd_x >= 0 && wd_x < SCREEN_WIDTH as i16);
+
+        let opt_wd_i = if should_show_window  {
             Some(self.wd_line[wd_x as usize])
         } else {
             None
