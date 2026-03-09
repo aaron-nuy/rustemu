@@ -1,6 +1,17 @@
 pub const MEMORY_SIZE: usize = 0x10000;
 
-pub const CARTRIDGE_SIZE: usize = 0x8000;
+pub const CARTRIDGE_SIZE: usize = 0x80000;
+pub const MAX_RAM_SIZE: usize = 0x8000;
+
+pub const ROM_BANK_0_BEGIN: u16 = 0x0000;
+pub const ROM_BANK_0_END: u16 = 0x3FFF;
+pub const ROM_BANK_N_BEGIN: u16 = 0x4000;
+pub const ROM_BANK_N_END: u16 = 0x7FFF;
+pub const EXT_RAM_BEGIN: u16 = 0xA000;
+pub const EXT_RAM_END: u16 = 0xBFFF;
+
+pub const ROM_BANK_SIZE: usize = 0x4000; 
+pub const RAM_BANK_SIZE: usize = 0x2000; 
 
 pub const TIMER_DIV_INC_RATE: u64 = 0x100;
 pub const REG_COUNT: usize = 42;

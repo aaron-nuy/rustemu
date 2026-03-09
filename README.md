@@ -35,7 +35,7 @@ It's my first time using rust for anything, so please forgive any non idiomatic 
 -   **PPU** Functional pixel pipeline along with display output
 -   **Input** Joypad input handling
 -   **Memory** RAM and Bus
--   **Cartridge** MBC0 cartridge support
+-   **Cartridge** MBC0 and MBC1 cartridge support
 -   **Custom Color Palettes** Custom RGB 4 color palette
 
 ## Build
@@ -91,7 +91,7 @@ so the emulator can automatically load it. (Make sure it's a 32KB ROM, since MBC
 
 ## TODO:
 
--   MBC switching
+-   MBC2 to MBC5 support
 -   Audio emulation
 -   Improve GPU perfomance (currently running every dot cycle)
 

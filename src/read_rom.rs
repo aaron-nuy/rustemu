@@ -8,10 +8,9 @@ pub fn read_file(cartridge_path: &str) -> [u8; CARTRIDGE_SIZE] {
         use std::fs;
         use std::path::Path;
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(cartridge_path);
-        data = fs::read(path)
-            .expect("Failed to read file")
-            .try_into()
-            .unwrap();
+        let rom_data = fs::read(path).expect("Failed to read file");
+        let len = rom_data.len().min(CARTRIDGE_SIZE);
+        data[..len].copy_from_slice(&rom_data[..len]);
     }
 
     #[cfg(efi)]
@@ -49,10 +48,10 @@ pub fn read_file(cartridge_path: &str) -> [u8; CARTRIDGE_SIZE] {
         let info = file.get_info::<FileInfo>(&mut info_buf).unwrap();
         let file_size = info.file_size() as usize;
 
-        if file_size != CARTRIDGE_SIZE {
-            info!("Wrong size: {}", file_size);
+        if file_size > CARTRIDGE_SIZE {
+            info!("File too large: {}", file_size);
             boot::stall(5_000_000_000);
-            panic!("Wrong ROM size");
+            panic!("ROM size exceeds CARTRIDGE_SIZE");
         }
 
         file.read(&mut data[..file_size]).unwrap();

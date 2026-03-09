@@ -23,8 +23,14 @@ impl Bus {
             addr if addr == BOOT_ROM_DISABLE_ADDR => {
                 self.boot_rom_enabled = false;
             }
+            ROM_BANK_0_BEGIN..=ROM_BANK_N_END => {
+                self.cartridge.write_rom(addr, value);
+            }
             VRAM_BEGIN..=VRAM_END => {
                 self.gpu.write_to_vram(addr - VRAM_BEGIN, value);
+            }
+            EXT_RAM_BEGIN..=EXT_RAM_END => {
+                self.cartridge.write_ram(addr, value);
             }
             addr if HwRegister::supported_addr(addr) => {
                 self.hw_registers.write_to_register_addr(addr, value)
@@ -39,7 +45,9 @@ impl Bus {
             addr if self.boot_rom_enabled && addr < BOOT_ROM_SIZE as u16 => {
                 self.boot_rom[addr as usize]
             }
+            ROM_BANK_0_BEGIN..=ROM_BANK_N_END => self.cartridge.read_rom(addr),
             VRAM_BEGIN..=VRAM_END => self.gpu.read_from_vram(addr - VRAM_BEGIN),
+            EXT_RAM_BEGIN..=EXT_RAM_END => self.cartridge.read_ram(addr),
             addr if HwRegister::supported_addr(addr) => {
                 self.hw_registers.read_from_register_addr(addr)
             }
@@ -72,7 +80,7 @@ impl Bus {
     }
 
     pub fn load_rom(&mut self, data: &[u8; CARTRIDGE_SIZE]) {
-        self.ram[..CARTRIDGE_SIZE].copy_from_slice(data);
+        self.cartridge.load_rom(data);
 
         self.gpu.vram.fill(0);
     }
