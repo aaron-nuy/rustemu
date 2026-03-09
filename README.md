@@ -32,7 +32,7 @@ It's my first time using rust for anything, so please forgive any non idiomatic 
 ## What works
 
 -   **CPU** Fully implemented and passes all Blargg's CPU tests
--   **PPU** Functional pixel pipeline along with display output
+-   **PPU** Scanline display with midline scrolling
 -   **Input** Joypad input handling
 -   **Memory** RAM and Bus
 -   **Cartridge** MBC0 and MBC1 cartridge support
