@@ -11,8 +11,8 @@ It's my first time using rust for anything, so please forgive any non idiomatic 
 </p>
 
 <p align="center">
-  <img src="pal_1.png" width="45%" />
-  <img src="pal_2.png" width="45%" />
+  <img src="zelda.png" width="45%" />
+  <img src="castle.png" width="45%" />
 </p>
 
 <p align="center">
